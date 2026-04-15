@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Box, Paper, Tabs, Tab, Typography, IconButton, Tooltip, CircularProgress } from '@mui/material'
-import RadarIcon from '@mui/icons-material/Radar'
-import MapIcon from '@mui/icons-material/Map'
-import SurroundSoundIcon from '@mui/icons-material/SurroundSound'
 import RefreshIcon from '@mui/icons-material/Refresh'
-import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone'
+import { ShipWheel, Map, BellRing, Radar } from 'lucide-react'
 
 const API_BASE = 'https://api.seawardautomation.com'
 const API_KEY = import.meta.env.VITE_SEAWARD_API_KEY
@@ -12,25 +9,25 @@ const API_KEY = import.meta.env.VITE_SEAWARD_API_KEY
 const TABS = [
   {
     label: 'Cruising',
-    icon: <RadarIcon sx={{ fontSize: 16 }} />,
+    icon: <ShipWheel size={16} />,
     url: `${API_BASE}/cruising`,
     description: 'Live vessel speed & heading data',
   },
   {
     label: 'Chart',
-    icon: <MapIcon sx={{ fontSize: 16 }} />,
+    icon: <Map size={16} />,
     url: `${API_BASE}/chart`,
     description: 'Live position chart',
   },
   {
     label: 'Omni-Sonar',
-    icon: <SurroundSoundIcon sx={{ fontSize: 16 }} />,
+    icon: <Radar size={16} />,
     url: `${API_BASE}/omni-sonar`,
     description: '360° sonar fish detection',
   },
   {
     label: 'Alarms',
-    icon: <NotificationsNoneIcon sx={{ fontSize: 16 }} />,
+    icon: <BellRing size={16} />,
     url: 'https://sfc-command-demo.seawardautomation.com/alarms',
     description: 'Live vessel alarms & alerts',
   },
@@ -144,7 +141,7 @@ export default function CommandCenter() {
       >
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <RadarIcon sx={{ color: '#e65d2c', fontSize: 18 }} />
+            <ShipWheel size={18} color="#e65d2c" />
             <Typography
               variant="h6"
               sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}
