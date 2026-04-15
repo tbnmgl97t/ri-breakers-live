@@ -1,33 +1,119 @@
-import React, { useState } from 'react'
-import { Box, Paper, Tabs, Tab, Typography, IconButton, Tooltip } from '@mui/material'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { Box, Paper, Tabs, Tab, Typography, IconButton, Tooltip, CircularProgress } from '@mui/material'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import RadarIcon from '@mui/icons-material/Radar'
 import MapIcon from '@mui/icons-material/Map'
 import SurroundSoundIcon from '@mui/icons-material/SurroundSound'
+import RefreshIcon from '@mui/icons-material/Refresh'
+
+const API_BASE = 'https://api.seawardautomation.com'
+const API_KEY = import.meta.env.VITE_SEAWARD_API_KEY
 
 const TABS = [
   {
     label: 'Cruising',
     icon: <RadarIcon sx={{ fontSize: 16 }} />,
-    url: 'https://sfc-command-demo.seawardautomation.com/cruising',
+    url: `${API_BASE}/cruising`,
     description: 'Live vessel speed & heading data',
   },
   {
     label: 'Omni-Sonar',
     icon: <SurroundSoundIcon sx={{ fontSize: 16 }} />,
-    url: 'https://sfc-command-demo.seawardautomation.com/omni-sonar',
+    url: `${API_BASE}/omni-sonar`,
     description: '360° sonar fish detection',
   },
   {
     label: 'Chart',
     icon: <MapIcon sx={{ fontSize: 16 }} />,
-    url: 'https://sfc-command-demo.seawardautomation.com/chart',
+    url: `${API_BASE}/chart`,
     description: 'Live position chart',
   },
 ]
 
+// Re-auth 5 minutes before the session expires
+const REAUTH_BUFFER_MS = 5 * 60 * 1000
+
 export default function CommandCenter() {
   const [activeTab, setActiveTab] = useState(0)
+  const [authStatus, setAuthStatus] = useState('idle') // 'idle' | 'loading' | 'authed' | 'error'
+  const [iframeKey, setIframeKey] = useState(0) // bump to force iframe reload after re-auth
+  const reauthTimerRef = useRef(null)
+
+  const authenticate = useCallback(async () => {
+    setAuthStatus('loading')
+    try {
+      const res = await fetch(`${API_BASE}/auth`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: API_KEY }),
+      })
+
+      if (!res.ok) throw new Error(`Auth failed: ${res.status}`)
+
+      const data = await res.json()
+      setAuthStatus('authed')
+
+      // Schedule silent re-auth before the session expires
+      if (data.expiresAt) {
+        const msUntilReauth = new Date(data.expiresAt) - Date.now() - REAUTH_BUFFER_MS
+        if (reauthTimerRef.current) clearTimeout(reauthTimerRef.current)
+        reauthTimerRef.current = setTimeout(() => {
+          silentReauth()
+        }, Math.max(msUntilReauth, 0))
+      }
+    } catch (err) {
+      console.error('[CommandCenter] Auth error:', err)
+      setAuthStatus('error')
+    }
+  }, [])
+
+  // Silent re-auth: refresh the cookie without showing a loading state,
+  // then bump the iframe key so the frames reload with the fresh session.
+  const silentReauth = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: API_KEY }),
+      })
+      if (!res.ok) throw new Error(`Silent re-auth failed: ${res.status}`)
+
+      const data = await res.json()
+      setIframeKey(k => k + 1)
+
+      if (data.expiresAt) {
+        const msUntilReauth = new Date(data.expiresAt) - Date.now() - REAUTH_BUFFER_MS
+        if (reauthTimerRef.current) clearTimeout(reauthTimerRef.current)
+        reauthTimerRef.current = setTimeout(() => {
+          silentReauth()
+        }, Math.max(msUntilReauth, 0))
+      }
+    } catch (err) {
+      console.error('[CommandCenter] Silent re-auth error:', err)
+      setAuthStatus('error')
+    }
+  }, [])
+
+  // Authenticate on mount
+  useEffect(() => {
+    authenticate()
+    return () => {
+      if (reauthTimerRef.current) clearTimeout(reauthTimerRef.current)
+    }
+  }, [authenticate])
+
+  // Re-auth when the tab becomes visible again (handles 30-min idle expiry)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && authStatus === 'authed') {
+        silentReauth()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [authStatus, silentReauth])
 
   return (
     <Paper
@@ -59,18 +145,37 @@ export default function CommandCenter() {
             >
               COMMAND CENTER
             </Typography>
+            {/* Auth status indicator */}
+            {authStatus === 'loading' && (
+              <CircularProgress size={12} sx={{ color: '#a8bcd4', ml: 0.5 }} />
+            )}
+            {authStatus === 'authed' && (
+              <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: '#4caf50', ml: 0.5, boxShadow: '0 0 6px #4caf50' }} />
+            )}
+            {authStatus === 'error' && (
+              <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: '#f44336', ml: 0.5 }} />
+            )}
           </Box>
-          <Tooltip title="Open in new tab">
-            <IconButton
-              size="small"
-              href={TABS[activeTab].url}
-              target="_blank"
-              rel="noopener noreferrer"
-              sx={{ color: '#a8bcd4', '&:hover': { color: '#e65d2c' } }}
-            >
-              <OpenInNewIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          </Tooltip>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {authStatus === 'error' && (
+              <Tooltip title="Retry connection">
+                <IconButton size="small" onClick={authenticate} sx={{ color: '#f44336', '&:hover': { color: '#e65d2c' } }}>
+                  <RefreshIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+            <Tooltip title="Open in new tab">
+              <IconButton
+                size="small"
+                href={TABS[activeTab].url}
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{ color: '#a8bcd4', '&:hover': { color: '#e65d2c' } }}
+              >
+                <OpenInNewIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
 
         <Tabs
@@ -103,15 +208,49 @@ export default function CommandCenter() {
         </Typography>
       </Box>
 
-      {/* iFrame — responsive height */}
+      {/* Content */}
       <Box sx={{ width: '100%', height: { xs: 1500, sm: '110vw', md: '70vw', lg: 920 }, minHeight: { xs: 1500, sm: 720, md: 800 }, position: 'relative' }}>
-        {TABS.map((tab, i) => (
+
+        {/* Loading overlay */}
+        {authStatus === 'loading' && (
+          <Box sx={{
+            position: 'absolute', inset: 0, zIndex: 10,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            bgcolor: 'background.paper', gap: 2,
+          }}>
+            <CircularProgress size={32} sx={{ color: '#e65d2c' }} />
+            <Typography variant="caption" sx={{ color: '#a8bcd4', letterSpacing: '0.1em', fontSize: '0.7rem' }}>
+              CONNECTING TO COMMAND CENTER…
+            </Typography>
+          </Box>
+        )}
+
+        {/* Error overlay */}
+        {authStatus === 'error' && (
+          <Box sx={{
+            position: 'absolute', inset: 0, zIndex: 10,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            bgcolor: 'background.paper', gap: 1.5,
+          }}>
+            <RadarIcon sx={{ color: 'rgba(168,188,212,0.3)', fontSize: 40 }} />
+            <Typography variant="body2" sx={{ color: '#a8bcd4', fontWeight: 600 }}>
+              Unable to connect
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.7rem', textAlign: 'center', maxWidth: 280 }}>
+              Could not authenticate with the Command Center. Check your connection and try again.
+            </Typography>
+          </Box>
+        )}
+
+        {/* Iframes — only rendered once authed */}
+        {authStatus === 'authed' && TABS.map((tab, i) => (
           <Box
-            key={i}
+            key={`${i}-${iframeKey}`}
             component="iframe"
             src={tab.url}
             title={tab.label}
-            allow="fullscreen"
+            allow="fullscreen; clipboard-read; clipboard-write"
+            referrerPolicy="strict-origin-when-cross-origin"
             sx={{
               position: 'absolute',
               inset: 0,
