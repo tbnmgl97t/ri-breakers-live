@@ -83,10 +83,6 @@ export default function VideoPlayer({ cameraIndex = 0 }) {
         border: '1px solid rgba(230,93,44,0.3)',
         boxShadow: '0 0 30px rgba(230,93,44,0.1)',
         position: 'relative',
-        // Maintain 16:9 on mobile; on desktop let it fill available height
-        aspectRatio: { xs: '16/9', lg: 'unset' },
-        flex: { lg: 1 },
-        minHeight: { lg: 0 },
       }}
     >
       {/* Camera label overlay */}
