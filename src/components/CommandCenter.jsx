@@ -28,7 +28,7 @@ const TABS = [
   {
     label: 'Alarms',
     icon: <BellRing size={16} />,
-    url: 'https://sfc-command-demo.seawardautomation.com/alarms',
+    url: `${API_BASE}/alarms`,
     description: 'Live vessel alarms & alerts',
   },
 ]
