@@ -45,7 +45,7 @@ export default function VideoPlayer({ cameraIndex = 0 }) {
         width: '100%',
         aspectratio: '16:9',
         autostart: true,
-        mute: true,
+        mute: false,
         stretching: 'uniform',
         skin: {
           name: 'netflix',
