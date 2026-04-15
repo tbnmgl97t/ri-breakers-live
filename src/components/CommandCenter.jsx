@@ -34,13 +34,10 @@ export default function CommandCenter() {
       elevation={0}
       sx={{
         width: '100%',
-        height: '100%',
         bgcolor: 'background.paper',
         borderRadius: 2,
         overflow: 'hidden',
         border: '1px solid rgba(255,255,255,0.07)',
-        display: 'flex',
-        flexDirection: 'column',
       }}
     >
       {/* Header */}
@@ -106,8 +103,8 @@ export default function CommandCenter() {
         </Typography>
       </Box>
 
-      {/* iFrame — fills remaining height of the Paper */}
-      <Box sx={{ flex: 1, minHeight: 300, position: 'relative' }}>
+      {/* iFrame */}
+      <Box sx={{ width: '100%', height: 720, position: 'relative' }}>
         {TABS.map((tab, i) => (
           <Box
             key={i}
