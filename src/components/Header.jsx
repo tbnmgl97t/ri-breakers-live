@@ -16,25 +16,17 @@ export default function Header() {
         {/* Logo / Team Name */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
           <Box
+            component="img"
+            src="https://ribreakersac.com/cdn/shop/files/RI-Breakers-Logo-WHITE.png?v=1774997726&width=200"
+            alt="Rhode Island Breakers"
             sx={{
-              width: { xs: 36, sm: 44 },
-              height: { xs: 36, sm: 44 },
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #e65d2c, #c94a1e)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: "'Bayon', sans-serif",
-              fontSize: { xs: 14, sm: 16 },
-              fontWeight: 700,
-              color: '#fff',
-              letterSpacing: '0.05em',
+              width: { xs: 44, sm: 54 },
+              height: { xs: 44, sm: 54 },
+              objectFit: 'contain',
               flexShrink: 0,
-              border: '2px solid rgba(255,255,255,0.2)',
+              filter: 'drop-shadow(0 0 6px rgba(230,93,44,0.35))',
             }}
-          >
-            RIB
-          </Box>
+          />
           <Box>
             <Typography
               variant="h6"
