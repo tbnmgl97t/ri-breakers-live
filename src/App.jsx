@@ -1,6 +1,13 @@
 import React, { useState } from 'react'
 import { ThemeProvider, CssBaseline } from '@mui/material'
-import { Box, Container, Grid, Typography } from '@mui/material'
+import {
+  Box, Container, Grid, Typography,
+  Button, Dialog, DialogContent, DialogTitle,
+  IconButton, useMediaQuery,
+} from '@mui/material'
+import { useTheme } from '@mui/material/styles'
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
+import CloseIcon from '@mui/icons-material/Close'
 import theme from './theme/theme'
 import Header from './components/Header'
 import VideoPlayer from './components/VideoPlayer'
@@ -8,8 +15,58 @@ import CameraSelector from './components/CameraSelector'
 import CommandCenter from './components/CommandCenter'
 import EventSchedule from './components/EventSchedule'
 
+function ScheduleModal({ open, onClose }) {
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="sm"
+      PaperProps={{
+        sx: {
+          bgcolor: 'background.paper',
+          backgroundImage: 'none',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 2,
+          m: 2,
+        },
+      }}
+    >
+      <DialogTitle
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          py: 1.5,
+          px: 2,
+          borderBottom: '1px solid rgba(255,255,255,0.07)',
+          background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <CalendarTodayIcon sx={{ color: '#e65d2c', fontSize: 18 }} />
+          <Typography
+            sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', color: '#fff' }}
+          >
+            EVENT SCHEDULE
+          </Typography>
+        </Box>
+        <IconButton size="small" onClick={onClose} sx={{ color: '#a8bcd4', '&:hover': { color: '#fff' } }}>
+          <CloseIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ p: 0 }}>
+        <EventSchedule flat />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function App() {
   const [selectedCamera, setSelectedCamera] = useState(0)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const muiTheme = useTheme()
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down('lg'))
 
   return (
     <ThemeProvider theme={theme}>
@@ -47,6 +104,29 @@ export default function App() {
             <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.65rem' }}>
               Apr 16–19 &nbsp;·&nbsp; Watch Rhode Island Breakers compete live
             </Typography>
+
+            {/* Mobile schedule button — in banner on mobile */}
+            {isMobile && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<CalendarTodayIcon sx={{ fontSize: '14px !important' }} />}
+                onClick={() => setScheduleOpen(true)}
+                sx={{
+                  ml: 'auto',
+                  py: 0.25,
+                  px: 1.25,
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.06em',
+                  color: '#e65d2c',
+                  borderColor: 'rgba(230,93,44,0.4)',
+                  '&:hover': { borderColor: '#e65d2c', bgcolor: 'rgba(230,93,44,0.08)' },
+                }}
+              >
+                SCHEDULE
+              </Button>
+            )}
           </Box>
 
           <Grid container spacing={{ xs: 2, md: 3 }}>
@@ -58,8 +138,8 @@ export default function App() {
               </Box>
             </Grid>
 
-            {/* Event Schedule */}
-            <Grid item xs={12} lg={4}>
+            {/* Event Schedule — desktop sidebar only */}
+            <Grid item lg={4} sx={{ display: { xs: 'none', lg: 'block' } }}>
               <EventSchedule />
             </Grid>
 
@@ -91,6 +171,9 @@ export default function App() {
           </Box>
         </Container>
       </Box>
+
+      {/* Mobile schedule modal */}
+      <ScheduleModal open={scheduleOpen} onClose={() => setScheduleOpen(false)} />
     </ThemeProvider>
   )
 }

@@ -44,7 +44,7 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-export default function EventSchedule() {
+export default function EventSchedule({ flat = false }) {
   const [now, setNow] = useState(new Date())
 
   useEffect(() => {
@@ -82,10 +82,10 @@ export default function EventSchedule() {
       elevation={0}
       sx={{
         width: '100%',
-        bgcolor: 'background.paper',
-        borderRadius: 2,
+        bgcolor: flat ? 'transparent' : 'background.paper',
+        borderRadius: flat ? 0 : 2,
         overflow: 'hidden',
-        border: '1px solid rgba(255,255,255,0.07)',
+        border: flat ? 'none' : '1px solid rgba(255,255,255,0.07)',
       }}
     >
       {/* Header */}
