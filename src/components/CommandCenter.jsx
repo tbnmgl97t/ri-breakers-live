@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Box, Paper, Tabs, Tab, Typography, IconButton, Tooltip, CircularProgress } from '@mui/material'
-import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import RadarIcon from '@mui/icons-material/Radar'
 import MapIcon from '@mui/icons-material/Map'
 import SurroundSoundIcon from '@mui/icons-material/SurroundSound'
 import RefreshIcon from '@mui/icons-material/Refresh'
+import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone'
 
 const API_BASE = 'https://api.seawardautomation.com'
 const API_KEY = import.meta.env.VITE_SEAWARD_API_KEY
@@ -17,16 +17,22 @@ const TABS = [
     description: 'Live vessel speed & heading data',
   },
   {
+    label: 'Chart',
+    icon: <MapIcon sx={{ fontSize: 16 }} />,
+    url: `${API_BASE}/chart`,
+    description: 'Live position chart',
+  },
+  {
     label: 'Omni-Sonar',
     icon: <SurroundSoundIcon sx={{ fontSize: 16 }} />,
     url: `${API_BASE}/omni-sonar`,
     description: '360° sonar fish detection',
   },
   {
-    label: 'Chart',
-    icon: <MapIcon sx={{ fontSize: 16 }} />,
-    url: `${API_BASE}/chart`,
-    description: 'Live position chart',
+    label: 'Alarms',
+    icon: <NotificationsNoneIcon sx={{ fontSize: 16 }} />,
+    url: 'https://sfc-command-demo.seawardautomation.com/alarms',
+    description: 'Live vessel alarms & alerts',
   },
 ]
 
@@ -164,17 +170,6 @@ export default function CommandCenter() {
                 </IconButton>
               </Tooltip>
             )}
-            <Tooltip title="Open in new tab">
-              <IconButton
-                size="small"
-                href={TABS[activeTab].url}
-                target="_blank"
-                rel="noopener noreferrer"
-                sx={{ color: '#a8bcd4', '&:hover': { color: '#e65d2c' } }}
-              >
-                <OpenInNewIcon sx={{ fontSize: 16 }} />
-              </IconButton>
-            </Tooltip>
           </Box>
         </Box>
 
