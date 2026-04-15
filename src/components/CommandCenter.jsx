@@ -103,8 +103,8 @@ export default function CommandCenter() {
         </Typography>
       </Box>
 
-      {/* iFrame */}
-      <Box sx={{ width: '100%', height: 720, position: 'relative' }}>
+      {/* iFrame — responsive height */}
+      <Box sx={{ width: '100%', height: { xs: '100vw', sm: '75vw', md: '60vw', lg: 870 }, minHeight: { xs: 480, sm: 560 }, position: 'relative' }}>
         {TABS.map((tab, i) => (
           <Box
             key={i}
