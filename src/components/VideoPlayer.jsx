@@ -32,6 +32,7 @@ function loadJWPlayerScript() {
 export default function VideoPlayer({ cameraIndex = 0 }) {
   const containerRef = useRef(null)
   const playerRef = useRef(null)
+  const muteStateRef = useRef(null) // persists mute across camera switches
   const playerDivId = 'jw-player-main'
 
   const initPlayer = useCallback(async () => {
@@ -39,8 +40,9 @@ export default function VideoPlayer({ cameraIndex = 0 }) {
       await loadJWPlayerScript()
       if (!containerRef.current || !window.jwplayer) return
 
-      // Destroy previous instance if it exists
+      // Save mute state before destroying
       if (playerRef.current) {
+        try { muteStateRef.current = playerRef.current.getMute() } catch (_) {}
         try { playerRef.current.remove() } catch (_) {}
       }
 
@@ -48,6 +50,12 @@ export default function VideoPlayer({ cameraIndex = 0 }) {
         file: CAMERAS[cameraIndex] ?? CAMERAS[0],
         width: '100%',
         aspectratio: '16:9',
+        ...(muteStateRef.current !== null && { mute: muteStateRef.current }),
+      })
+
+      // Track mute changes so next switch preserves them
+      playerRef.current.on('mute', ({ mute }) => {
+        muteStateRef.current = mute
       })
     } catch (err) {
       console.error('JW Player failed to load:', err)
