@@ -8,8 +8,6 @@ import {
 import { useTheme } from '@mui/material/styles'
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
 import CloseIcon from '@mui/icons-material/Close'
-import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline'
-import StopCircleOutlinedIcon from '@mui/icons-material/StopCircleOutlined'
 import theme from './theme/theme'
 import Header from './components/Header'
 import VideoPlayer from './components/VideoPlayer'
@@ -68,11 +66,10 @@ function ScheduleModal({ open, onClose }) {
 export default function App() {
   const [selectedCamera, setSelectedCamera] = useState(0)
   const [scheduleOpen, setScheduleOpen] = useState(false)
-  const [simulateLive, setSimulateLive] = useState(false)
   const [now, setNow] = useState(new Date())
   const muiTheme = useTheme()
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('lg'))
-  const live = simulateLive || isAnyEventLive(now)
+  const live = isAnyEventLive(now)
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 10000)
@@ -116,40 +113,6 @@ export default function App() {
               Apr 16–19 &nbsp;·&nbsp; Watch Rhode Island Breakers compete live
             </Typography>
 
-            {/* Simulate Live toggle — dev preview */}
-            <Button
-              size="small"
-              variant={simulateLive ? 'contained' : 'outlined'}
-              startIcon={
-                simulateLive
-                  ? <StopCircleOutlinedIcon sx={{ fontSize: '14px !important' }} />
-                  : <PlayCircleOutlineIcon sx={{ fontSize: '14px !important' }} />
-              }
-              onClick={() => setSimulateLive(v => !v)}
-              sx={{
-                ml: isMobile ? 'auto' : 'auto',
-                py: 0.25,
-                px: 1.25,
-                fontSize: '0.65rem',
-                fontWeight: 700,
-                letterSpacing: '0.06em',
-                ...(simulateLive
-                  ? {
-                      bgcolor: '#e65d2c',
-                      color: '#fff',
-                      borderColor: '#e65d2c',
-                      '&:hover': { bgcolor: '#c94e24' },
-                    }
-                  : {
-                      color: 'rgba(168,188,212,0.7)',
-                      borderColor: 'rgba(168,188,212,0.25)',
-                      '&:hover': { borderColor: 'rgba(168,188,212,0.5)', bgcolor: 'rgba(168,188,212,0.05)' },
-                    }),
-              }}
-            >
-              {simulateLive ? 'STOP PREVIEW' : 'SIMULATE LIVE'}
-            </Button>
-
             {/* Mobile schedule button — in banner on mobile */}
             {isMobile && (
               <Button
@@ -158,6 +121,7 @@ export default function App() {
                 startIcon={<CalendarTodayIcon sx={{ fontSize: '14px !important' }} />}
                 onClick={() => setScheduleOpen(true)}
                 sx={{
+                  ml: 'auto',
                   py: 0.25,
                   px: 1.25,
                   fontSize: '0.65rem',
