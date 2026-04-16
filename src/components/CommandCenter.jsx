@@ -174,11 +174,15 @@ export default function CommandCenter() {
           value={activeTab}
           onChange={(_, v) => setActiveTab(v)}
           textColor="inherit"
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           TabIndicatorProps={{ style: { backgroundColor: '#e65d2c', height: 3 } }}
           sx={{
             minHeight: 36,
             '& .MuiTab-root': { minHeight: 36, py: 0.5, color: '#a8bcd4' },
             '& .Mui-selected': { color: '#e65d2c' },
+            '& .MuiTabScrollButton-root': { color: '#a8bcd4' },
           }}
         >
           {TABS.map((tab, i) => (
