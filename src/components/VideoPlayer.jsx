@@ -49,7 +49,7 @@ export default function VideoPlayer({ cameraIndex = 0 }) {
         width: '100%',
         aspectratio: '16:9',
         autostart: true,
-        mute: false,
+        mute: true, // start muted to satisfy browser autoplay policy
         stretching: 'uniform',
         skin: {
           name: 'netflix',
@@ -60,6 +60,12 @@ export default function VideoPlayer({ cameraIndex = 0 }) {
         logo: {
           hide: true,
         },
+      })
+
+      // Unmute as soon as the first frame plays — browsers allow this
+      // because it follows a user-permitted autoplay, not a cold audio start
+      playerRef.current.once('firstFrame', () => {
+        try { playerRef.current.setMute(false) } catch (_) {}
       })
     } catch (err) {
       console.error('JW Player failed to load:', err)
