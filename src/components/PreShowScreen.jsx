@@ -218,7 +218,7 @@ export default function PreShowScreen() {
               mt: 0.5,
             }}
           >
-            SPORT FISHING CHAMPIONSHIP 2026
+            THE CATCH PRO-AM 2026
           </Typography>
         </Box>
 

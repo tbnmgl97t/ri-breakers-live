@@ -106,11 +106,11 @@ export default function App() {
             }}
           >
             <Typography variant="caption" sx={{ color: '#e65d2c', fontWeight: 700, letterSpacing: '0.1em', fontSize: '0.65rem' }}>
-              SPORT FISHING CHAMPIONSHIP 2026
+              THE CATCH PRO-AM 2026
             </Typography>
             <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'rgba(168,188,212,0.5)', display: { xs: 'none', sm: 'block' } }} />
             <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.65rem' }}>
-              Apr 16–19 &nbsp;·&nbsp; Watch Rhode Island Breakers compete live
+              Apr 16–19 &nbsp;·&nbsp; Watch Rhode Island Breakers at The Catch Pro-Am
             </Typography>
 
             {/* Mobile schedule button — in banner on mobile */}
@@ -177,7 +177,7 @@ export default function App() {
             }}
           >
             <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.65rem' }}>
-              © 2026 Rhode Island Breakers · Sport Fishing Championship
+              © 2026 Rhode Island Breakers · The Catch Pro-Am
             </Typography>
             <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.65rem' }}>
               All times Eastern (EST)
