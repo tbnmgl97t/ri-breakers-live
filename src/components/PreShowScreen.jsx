@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react'
 import { Box, Typography } from '@mui/material'
 
 export const EVENTS = [
-  { date: '2026-04-16', label: 'Day 1', start: '8:00 AM', end: '3:00 PM', tz: 'EST' },
-  { date: '2026-04-17', label: 'Day 2', start: '8:00 AM', end: '5:00 PM', tz: 'EST' },
-  { date: '2026-04-18', label: 'Day 3', start: '8:00 AM', end: '5:00 PM', tz: 'EST' },
-  { date: '2026-04-19', label: 'Day 4', start: '8:00 AM', end: '5:00 PM', tz: 'EST' },
+  { date: '2026-04-16', label: 'Pro/Am', start: '8:00 AM', end: '3:00 PM', tz: 'EST' },
+  { date: '2026-04-17', label: 'Day 1', start: '8:00 AM', end: '5:00 PM', tz: 'EST' },
+  { date: '2026-04-18', label: 'Day 2', start: '8:00 AM', end: '5:00 PM', tz: 'EST' },
+  { date: '2026-04-19', label: 'Day 3', start: '8:00 AM', end: '5:00 PM', tz: 'EST' },
 ]
 
 export function parseEventWindow(dateStr, startTime, endTime) {
