@@ -86,7 +86,7 @@ export default function App() {
           backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(10,32,90,0.6) 0%, transparent 70%)',
         }}
       >
-        <Header />
+        <Header live={live} />
 
         <Container maxWidth="xl" sx={{ py: { xs: 2, sm: 3 }, px: { xs: 1.5, sm: 2, md: 3 } }}>
 

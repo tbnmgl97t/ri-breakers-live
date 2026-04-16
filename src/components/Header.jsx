@@ -2,7 +2,7 @@ import React from 'react'
 import { AppBar, Toolbar, Box, Typography, Chip } from '@mui/material'
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord'
 
-export default function Header() {
+export default function Header({ live = false }) {
   return (
     <AppBar
       position="sticky"
@@ -56,24 +56,27 @@ export default function Header() {
               sx={{
                 fontSize: '10px !important',
                 color: '#fff !important',
-                animation: 'pulse 1.5s ease-in-out infinite',
-                '@keyframes pulse': {
-                  '0%, 100%': { opacity: 1 },
-                  '50%': { opacity: 0.3 },
-                },
+                ...(live && {
+                  animation: 'pulse 1.5s ease-in-out infinite',
+                  '@keyframes pulse': {
+                    '0%, 100%': { opacity: 1 },
+                    '50%': { opacity: 0.3 },
+                  },
+                }),
               }}
             />
           }
-          label="LIVE"
+          label={live ? 'LIVE' : 'OFFLINE'}
           size="small"
           sx={{
-            background: '#e65d2c',
+            background: live ? '#e65d2c' : 'rgba(168,188,212,0.2)',
             color: '#fff',
             fontWeight: 700,
             fontSize: '0.7rem',
             letterSpacing: '0.1em',
             height: 26,
             fontFamily: "'Poppins', sans-serif",
+            border: live ? 'none' : '1px solid rgba(168,188,212,0.3)',
           }}
         />
       </Toolbar>
