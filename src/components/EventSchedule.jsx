@@ -131,7 +131,7 @@ export default function EventSchedule({ flat = false }) {
             <AccessTimeIcon sx={{ color: '#e65d2c', fontSize: 16 }} />
             {status === 'live' ? (
               <Typography variant="body2" sx={{ color: '#e65d2c', fontWeight: 700 }}>
-                Day {nextEvent.label.split(' ')[1]} is live now &mdash; ends {nextEvent.end} {nextEvent.tz}
+                {nextEvent.label} is live now &mdash; ends {nextEvent.end} {nextEvent.tz}
               </Typography>
             ) : (
               <Typography variant="body2" sx={{ color: '#a8bcd4' }}>
