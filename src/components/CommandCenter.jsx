@@ -246,7 +246,6 @@ export default function CommandCenter() {
             src={tab.url}
             title={tab.label}
             allow="fullscreen; clipboard-read; clipboard-write"
-            scrolling="no"
             referrerPolicy="strict-origin-when-cross-origin"
             sx={{
               position: 'absolute',
@@ -256,6 +255,7 @@ export default function CommandCenter() {
               border: 'none',
               display: activeTab === i ? 'block' : 'none',
               bgcolor: '#000',
+              overflow: 'hidden',
             }}
           />
         ))}
