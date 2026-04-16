@@ -52,7 +52,7 @@ export default function VideoPlayer({ cameraIndex = 0 }) {
     } catch (err) {
       console.error('JW Player failed to load:', err)
     }
-  }, [])
+  }, [cameraIndex])
 
   useEffect(() => {
     initPlayer()
