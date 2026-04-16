@@ -2,7 +2,11 @@ import React, { useEffect, useRef, useCallback } from 'react'
 import { Box, Paper, Typography } from '@mui/material'
 
 const JW_PLAYER_LIB = 'https://cdn.jwplayer.com/libraries/xJKVL03e.js'
-const MEDIA_ID = 'QX6C9TkF'
+
+const CAMERAS = [
+  'https://cdn.jwplayer.com/live/broadcast/ycdpLdyf.m3u8',
+  'https://cdn.jwplayer.com/live/broadcast/L0ak6C6G.m3u8',
+]
 
 function loadJWPlayerScript() {
   return new Promise((resolve, reject) => {
@@ -41,7 +45,7 @@ export default function VideoPlayer({ cameraIndex = 0 }) {
       }
 
       playerRef.current = window.jwplayer(playerDivId).setup({
-        playlist: `https://cdn.jwplayer.com/v2/media/${MEDIA_ID}`,
+        file: CAMERAS[cameraIndex] ?? CAMERAS[0],
         width: '100%',
         aspectratio: '16:9',
         autostart: true,
