@@ -205,7 +205,7 @@ export default function CommandCenter() {
       </Box>
 
       {/* Content */}
-      <Box sx={{ width: '100%', height: { xs: 1500, sm: '110vw', md: '70vw', lg: 920 }, minHeight: { xs: 1500, sm: 720, md: 800 }, position: 'relative' }}>
+      <Box sx={{ width: '100%', height: { xs: 1900, sm: '110vw', md: '70vw', lg: 920 }, minHeight: { xs: 1900, sm: 720, md: 800 }, position: 'relative', overflow: 'hidden' }}>
 
         {/* Loading overlay */}
         {authStatus === 'loading' && (
@@ -246,6 +246,7 @@ export default function CommandCenter() {
             src={tab.url}
             title={tab.label}
             allow="fullscreen; clipboard-read; clipboard-write"
+            scrolling="no"
             referrerPolicy="strict-origin-when-cross-origin"
             sx={{
               position: 'absolute',
