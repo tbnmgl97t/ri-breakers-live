@@ -205,7 +205,7 @@ export default function CommandCenter() {
       </Box>
 
       {/* Content */}
-      <Box sx={{ width: '100%', height: { xs: 1900, sm: '110vw', md: '70vw', lg: 920 }, minHeight: { xs: 1900, sm: 720, md: 800 }, position: 'relative', overflow: 'hidden' }}>
+      <Box sx={{ width: '100%', height: { xs: 2000, sm: '110vw', md: '70vw', lg: 920 }, minHeight: { xs: 2000, sm: 720, md: 800 }, position: 'relative', overflow: 'hidden' }}>
 
         {/* Loading overlay */}
         {authStatus === 'loading' && (
