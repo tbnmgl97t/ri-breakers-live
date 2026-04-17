@@ -9,15 +9,23 @@ export const EVENTS = [
 ]
 
 export function parseEventWindow(dateStr, startTime, endTime) {
+  // Build an absolute UTC timestamp using the Eastern offset for each date.
+  // Apr 16-19 fall during EDT (UTC-4). Using setHours() would apply the
+  // viewer's local timezone instead, causing the window to be off for anyone
+  // not in Eastern time.
   const toDate = (date, time) => {
     const [h, mAP] = time.split(':')
     const [min, ap] = mAP.split(' ')
     let hours = parseInt(h)
     if (ap === 'PM' && hours !== 12) hours += 12
     if (ap === 'AM' && hours === 12) hours = 0
-    const d = new Date(`${date}T00:00:00-05:00`)
-    d.setHours(hours, parseInt(min), 0, 0)
-    return d
+    const hh = String(hours).padStart(2, '0')
+    const mm = String(parseInt(min)).padStart(2, '0')
+    // Determine Eastern offset: EDT (UTC-4) Mar–Nov, EST (UTC-5) Nov–Mar
+    const d = new Date(date)
+    const month = d.getUTCMonth() + 1 // 1-12
+    const easternOffset = (month >= 3 && month <= 11) ? '-04:00' : '-05:00'
+    return new Date(`${date}T${hh}:${mm}:00${easternOffset}`)
   }
   return { start: toDate(dateStr, startTime), end: toDate(dateStr, endTime) }
 }
