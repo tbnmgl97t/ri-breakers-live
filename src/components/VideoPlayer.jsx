@@ -29,11 +29,14 @@ function loadJWPlayerScript() {
   })
 }
 
-export default function VideoPlayer({ cameraIndex = 0 }) {
+export default function VideoPlayer({ cameraIndex = 0, cameraUrl }) {
   const containerRef = useRef(null)
   const playerRef = useRef(null)
   const muteStateRef = useRef(null) // persists mute across camera switches
   const playerDivId = 'jw-player-main'
+
+  // cameraUrl from DB takes priority; fall back to hardcoded array
+  const resolvedUrl = cameraUrl || CAMERAS[cameraIndex] || CAMERAS[0]
 
   const initPlayer = useCallback(async () => {
     try {
@@ -47,7 +50,7 @@ export default function VideoPlayer({ cameraIndex = 0 }) {
       }
 
       playerRef.current = window.jwplayer(playerDivId).setup({
-        file: CAMERAS[cameraIndex] ?? CAMERAS[0],
+        file: resolvedUrl,
         width: '100%',
         aspectratio: '16:9',
         ...(muteStateRef.current !== null && { mute: muteStateRef.current }),
@@ -60,7 +63,7 @@ export default function VideoPlayer({ cameraIndex = 0 }) {
     } catch (err) {
       console.error('JW Player failed to load:', err)
     }
-  }, [cameraIndex])
+  }, [resolvedUrl])
 
   useEffect(() => {
     initPlayer()
@@ -70,7 +73,7 @@ export default function VideoPlayer({ cameraIndex = 0 }) {
         playerRef.current = null
       }
     }
-  }, [initPlayer, cameraIndex])
+  }, [initPlayer, resolvedUrl])
 
   return (
     <Paper

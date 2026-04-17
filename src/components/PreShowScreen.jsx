@@ -8,7 +8,16 @@ export const EVENTS = [
   { date: '2026-04-19', label: 'Day 3', start: '8:00 AM', end: '5:00 PM', tz: 'EST' },
 ]
 
-export function parseEventWindow(dateStr, startTime, endTime) {
+// Accepts either (dateStr, startTime, endTime) or a single event object
+export function parseEventWindow(dateStrOrEvent, startTime, endTime) {
+  if (typeof dateStrOrEvent === 'object' && dateStrOrEvent !== null) {
+    const ev = dateStrOrEvent
+    return parseEventWindowInner(ev.date, ev.start || ev.start_time, ev.end || ev.end_time)
+  }
+  return parseEventWindowInner(dateStrOrEvent, startTime, endTime)
+}
+
+function parseEventWindowInner(dateStr, startTime, endTime) {
   // Build an absolute UTC timestamp using the Eastern offset for each date.
   // Apr 16-19 fall during EDT (UTC-4). Using setHours() would apply the
   // viewer's local timezone instead, causing the window to be off for anyone
@@ -30,8 +39,8 @@ export function parseEventWindow(dateStr, startTime, endTime) {
   return { start: toDate(dateStr, startTime), end: toDate(dateStr, endTime) }
 }
 
-export function isAnyEventLive(now) {
-  return EVENTS.some(ev => {
+export function isAnyEventLive(now, events = EVENTS) {
+  return events.some(ev => {
     const { start, end } = parseEventWindow(ev.date, ev.start, ev.end)
     return now >= start && now <= end
   })

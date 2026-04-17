@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Routes, Route } from 'react-router-dom'
 import { ThemeProvider, CssBaseline } from '@mui/material'
 import {
   Box, Container, Grid, Typography,
@@ -14,7 +15,8 @@ import VideoPlayer from './components/VideoPlayer'
 import CameraSelector from './components/CameraSelector'
 import CommandCenter from './components/CommandCenter'
 import EventSchedule from './components/EventSchedule'
-import PreShowScreen, { isAnyEventLive } from './components/PreShowScreen'
+import PreShowScreen, { isAnyEventLive, parseEventWindow, EVENTS as FALLBACK_EVENTS } from './components/PreShowScreen'
+import Admin from './components/Admin'
 
 function ScheduleModal({ open, onClose }) {
   return (
@@ -63,13 +65,51 @@ function ScheduleModal({ open, onClose }) {
   )
 }
 
-export default function App() {
+// Converts DB row format to the shape PreShowScreen / EventSchedule expect
+function dbRowToEvent(row) {
+  return {
+    date: row.date,
+    label: row.label,
+    start: row.start_time,
+    end: row.end_time,
+    tz: row.tz || 'EDT',
+    camera1_url: row.camera1_url || null,
+    camera2_url: row.camera2_url || null,
+  }
+}
+
+function LiveFeed() {
   const [selectedCamera, setSelectedCamera] = useState(0)
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [now, setNow] = useState(new Date())
+  const [events, setEvents] = useState(FALLBACK_EVENTS)
   const muiTheme = useTheme()
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('lg'))
-  const live = isAnyEventLive(now)
+  const live = isAnyEventLive(now, events)
+
+  // Fetch schedule from DB; fall back to hardcoded if unavailable
+  useEffect(() => {
+    fetch('/api/schedule')
+      .then(r => r.ok ? r.json() : null)
+      .then(rows => {
+        if (rows && rows.length > 0) setEvents(rows.map(dbRowToEvent))
+      })
+      .catch(() => {}) // silently use fallback
+  }, [])
+
+  // Derive camera URLs from the currently live event (fall back to hardcoded)
+  const FALLBACK_CAMERAS = [
+    'https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8',
+    'https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8',
+  ]
+  const liveEvent = events.find(ev => {
+    const { start, end } = parseEventWindow(ev)
+    return now >= start && now <= end
+  })
+  const cameraUrls = [
+    (liveEvent?.camera1_url) || FALLBACK_CAMERAS[0],
+    (liveEvent?.camera2_url) || FALLBACK_CAMERAS[1],
+  ]
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 10000)
@@ -143,7 +183,7 @@ export default function App() {
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                 {live ? (
                   <>
-                    <VideoPlayer cameraIndex={selectedCamera} />
+                    <VideoPlayer cameraUrl={cameraUrls[selectedCamera]} cameraIndex={selectedCamera} />
                     <CameraSelector selected={selectedCamera} onChange={setSelectedCamera} />
                   </>
                 ) : (
@@ -189,5 +229,14 @@ export default function App() {
       {/* Mobile schedule modal */}
       <ScheduleModal open={scheduleOpen} onClose={() => setScheduleOpen(false)} />
     </ThemeProvider>
+  )
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/admin" element={<Admin />} />
+      <Route path="*" element={<LiveFeed />} />
+    </Routes>
   )
 }
