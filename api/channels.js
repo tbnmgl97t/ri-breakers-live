@@ -10,11 +10,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    const url = `https://api.jwplayer.com/v2/sites/${SITE_ID}/channels/?page_length=50`
+    const url = `https://api.jwplayer.com/v2/sites/${SITE_ID}/live/broadcast/streams/?page_length=50`
     const r = await fetch(url, {
       headers: {
         Authorization: `Bearer ${API_SECRET}`,
-        'Content-Type': 'application/json',
+        Accept: 'application/json',
       },
     })
 
@@ -25,12 +25,12 @@ export default async function handler(req, res) {
         error: `JW API error ${r.status}`,
         detail: body,
         siteId: SITE_ID,
-        secretPrefix: API_SECRET.slice(0, 8) + '…',
       })
     }
 
     const data = JSON.parse(body)
-    const channels = data.channels || data.items || []
+    // Normalise to a consistent `channels` array regardless of JW response key
+    const channels = data.streams || data.broadcast_streams || data.items || data.results || []
     return res.status(200).json({ channels })
   } catch (err) {
     return res.status(500).json({ error: err.message })
