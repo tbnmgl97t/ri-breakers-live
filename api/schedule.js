@@ -4,10 +4,10 @@ const EC_ID = process.env.EDGE_CONFIG_ID
 const VERCEL_TOKEN = process.env.VERCEL_API_TOKEN
 
 const DEFAULT_EVENTS = [
-  { id: 1, label: 'Pro/Am', date: '2026-04-16', start_time: '8:00 AM', end_time: '3:00 PM', tz: 'EDT', camera1_url: null, camera2_url: null },
-  { id: 2, label: 'Day 1',  date: '2026-04-17', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'EDT', camera1_url: null, camera2_url: null },
-  { id: 3, label: 'Day 2',  date: '2026-04-18', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'EDT', camera1_url: null, camera2_url: null },
-  { id: 4, label: 'Day 3',  date: '2026-04-19', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'EDT', camera1_url: null, camera2_url: null },
+  { id: 1, label: 'Pro/Am', date: '2026-04-16', start_time: '8:00 AM', end_time: '3:00 PM', tz: 'EDT', camera1_url: null, camera1_name: null, camera2_url: null, camera2_name: null },
+  { id: 2, label: 'Day 1',  date: '2026-04-17', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'EDT', camera1_url: null, camera1_name: null, camera2_url: null, camera2_name: null },
+  { id: 3, label: 'Day 2',  date: '2026-04-18', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'EDT', camera1_url: null, camera1_name: null, camera2_url: null, camera2_name: null },
+  { id: 4, label: 'Day 3',  date: '2026-04-19', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'EDT', camera1_url: null, camera1_name: null, camera2_url: null, camera2_name: null },
 ]
 
 async function readSchedule() {
@@ -62,19 +62,19 @@ export default async function handler(req, res) {
     const events = await readSchedule()
 
     if (req.method === 'POST') {
-      const { label, date, start_time, end_time, tz = 'EDT', camera1_url = null, camera2_url = null } = req.body
+      const { label, date, start_time, end_time, tz = 'EDT', camera1_url = null, camera1_name = null, camera2_url = null, camera2_name = null } = req.body
       if (!label || !date || !start_time || !end_time) {
         return res.status(400).json({ error: 'label, date, start_time, end_time are required' })
       }
       const newId = Math.max(0, ...events.map(e => e.id)) + 1
-      const newEvent = { id: newId, label, date, start_time, end_time, tz, camera1_url, camera2_url }
+      const newEvent = { id: newId, label, date, start_time, end_time, tz, camera1_url, camera1_name, camera2_url, camera2_name }
       const updated = [...events, newEvent].sort((a, b) => a.date.localeCompare(b.date))
       await writeSchedule(updated)
       return res.status(201).json(newEvent)
     }
 
     if (req.method === 'PUT') {
-      const { id, label, date, start_time, end_time, tz, camera1_url, camera2_url } = req.body
+      const { id, label, date, start_time, end_time, tz, camera1_url, camera1_name, camera2_url, camera2_name } = req.body
       if (!id) return res.status(400).json({ error: 'id is required' })
       const idx = events.findIndex(e => e.id === Number(id))
       if (idx === -1) return res.status(404).json({ error: 'Event not found' })
@@ -87,7 +87,9 @@ export default async function handler(req, res) {
         ...(end_time !== undefined && { end_time }),
         ...(tz !== undefined && { tz }),
         camera1_url: camera1_url ?? null,
+        camera1_name: camera1_name ?? null,
         camera2_url: camera2_url ?? null,
+        camera2_name: camera2_name ?? null,
       }
       await writeSchedule(updated)
       return res.status(200).json(updated[idx])

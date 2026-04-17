@@ -181,37 +181,32 @@ function ChannelPickerDialog({ open, slot, event, channels, onClose, onPick }) {
               elevation={0}
               sx={{
                 p: 1.5, border: '1px solid rgba(255,255,255,0.07)', borderRadius: 1.5,
-                cursor: 'pointer', '&:hover': { borderColor: '#e65d2c', bgcolor: 'rgba(230,93,44,0.05)' },
+                cursor: 'pointer', '&:hover': { borderColor: '#f44336', bgcolor: 'rgba(244,67,54,0.05)' },
               }}
             >
-              <Typography variant="body2" sx={{ color: '#a8bcd4', fontStyle: 'italic' }}>— Clear assignment —</Typography>
+              <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.6)', fontStyle: 'italic' }}>— Clear assignment —</Typography>
             </Paper>
             {channels.map(ch => {
-              const streamUrl = ch.current_event?.stream_url || ch.stream_url || null
               const isLive = ch.status === 'active'
               return (
                 <Paper
                   key={ch.id}
-                  onClick={() => onPick(streamUrl || ch.id)}
+                  onClick={() => ch.stream_url && onPick({ url: ch.stream_url, name: ch.name })}
                   elevation={0}
                   sx={{
                     p: 1.5, border: '1px solid rgba(255,255,255,0.07)', borderRadius: 1.5,
-                    cursor: streamUrl ? 'pointer' : 'default',
-                    opacity: streamUrl ? 1 : 0.5,
-                    '&:hover': streamUrl ? { borderColor: '#e65d2c', bgcolor: 'rgba(230,93,44,0.05)' } : {},
+                    cursor: ch.stream_url ? 'pointer' : 'default',
+                    opacity: ch.stream_url ? 1 : 0.5,
+                    '&:hover': ch.stream_url ? { borderColor: '#e65d2c', bgcolor: 'rgba(230,93,44,0.05)' } : {},
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
                     <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>{ch.name || ch.id}</Typography>
-                      {streamUrl && (
-                        <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.65rem', wordBreak: 'break-all' }}>
-                          {streamUrl}
-                        </Typography>
-                      )}
-                      {!streamUrl && (
-                        <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.65rem' }}>No stream URL available</Typography>
-                      )}
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>{ch.name}</Typography>
+                      {ch.stream_url
+                        ? <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.65rem', wordBreak: 'break-all' }}>{ch.stream_url}</Typography>
+                        : <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.65rem' }}>No stream URL available</Typography>
+                      }
                     </Box>
                     <Chip
                       label={isLive ? 'LIVE' : (ch.status || 'idle').toUpperCase()}
@@ -306,16 +301,20 @@ function Dashboard({ token, onLogout }) {
     await fetchEvents()
   }
 
-  async function assignCamera(slot, url) {
+  async function assignCamera(slot, picked) {
     const ev = pickerDialog.event
     if (!ev) return
+    const url = picked?.url ?? null
+    const name = picked?.name ?? null
     await fetch('/api/schedule', {
       method: 'PUT',
       headers: authHeader(token),
       body: JSON.stringify({
         id: ev.id,
-        camera1_url: slot === 1 ? url : ev.camera1_url,
-        camera2_url: slot === 2 ? url : ev.camera2_url,
+        camera1_url:  slot === 1 ? url  : ev.camera1_url,
+        camera1_name: slot === 1 ? name : ev.camera1_name,
+        camera2_url:  slot === 2 ? url  : ev.camera2_url,
+        camera2_name: slot === 2 ? name : ev.camera2_name,
       }),
     })
     setPickerDialog({ open: false, slot: null, event: null })
@@ -432,7 +431,8 @@ function Dashboard({ token, onLogout }) {
                       <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{ev.start_time} – {ev.end_time} {ev.tz}</Typography>
                     </TableCell>
                     {[1, 2].map(slot => {
-                      const url = slot === 1 ? ev.camera1_url : ev.camera2_url
+                      const url  = slot === 1 ? ev.camera1_url  : ev.camera2_url
+                      const name = slot === 1 ? ev.camera1_name : ev.camera2_name
                       return (
                         <TableCell key={slot}>
                           <Box
@@ -446,10 +446,23 @@ function Dashboard({ token, onLogout }) {
                               '&:hover': { borderColor: '#e65d2c', bgcolor: 'rgba(230,93,44,0.1)' },
                             }}
                           >
-                            {url
-                              ? <><CheckCircleIcon sx={{ fontSize: 12, color: '#e65d2c' }} /><Typography variant="caption" sx={{ color: '#e65d2c', fontFamily: 'monospace', fontSize: '0.65rem' }}>{shortUrl(url)}</Typography></>
-                              : <><VideocamIcon sx={{ fontSize: 12, color: '#a8bcd4' }} /><Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>Assign</Typography></>
-                            }
+                            {url ? (
+                              <>
+                                <CheckCircleIcon sx={{ fontSize: 12, color: '#e65d2c' }} />
+                                <Box>
+                                  <Typography variant="caption" sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.7rem', display: 'block', lineHeight: 1.2 }}>
+                                    {name || shortUrl(url)}
+                                  </Typography>
+                                  {name && (
+                                    <Typography variant="caption" sx={{ color: 'rgba(230,93,44,0.6)', fontFamily: 'monospace', fontSize: '0.6rem', display: 'block', lineHeight: 1.2 }}>
+                                      {shortUrl(url)}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              </>
+                            ) : (
+                              <><VideocamIcon sx={{ fontSize: 12, color: '#a8bcd4' }} /><Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>Assign</Typography></>
+                            )}
                           </Box>
                         </TableCell>
                       )

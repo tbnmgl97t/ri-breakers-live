@@ -29,8 +29,14 @@ export default async function handler(req, res) {
     }
 
     const data = JSON.parse(body)
-    // Normalise to a consistent `channels` array regardless of JW response key
-    const channels = data.streams || data.broadcast_streams || data.items || data.results || []
+    const raw = data.streams || data.broadcast_streams || data.items || data.results || []
+    // Normalise each stream to a consistent shape
+    const channels = raw.map(ch => ({
+      id: ch.id,
+      name: ch.title || ch.name || ch.id,
+      status: ch.status || 'idle',
+      stream_url: ch.stream_url || ch.hls_stream_url || ch.playback_url || null,
+    }))
     return res.status(200).json({ channels })
   } catch (err) {
     return res.status(500).json({ error: err.message })
