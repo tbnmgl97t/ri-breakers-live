@@ -17,7 +17,6 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  // Try each endpoint until one works
   let lastStatus = null
   let lastBody = null
 
@@ -35,20 +34,20 @@ export default async function handler(req, res) {
 
       if (r.ok) {
         const data = JSON.parse(lastBody)
-        // Normalise — JW returns items under different keys depending on endpoint
         const channels = data.broadcasts || data.channels || data.live_channels || data.live_events || data.items || []
         return res.status(200).json({ channels, _endpoint: url })
       }
+
+      // 404 = wrong path, keep trying. Anything else = right path, wrong auth/perms — stop here.
+      if (r.status !== 404) break
     } catch (err) {
       lastBody = err.message
     }
   }
 
-  // None worked — return the last error with full body for debugging
   return res.status(lastStatus || 500).json({
     error: `JW API error ${lastStatus}`,
     detail: lastBody,
     siteId: SITE_ID,
-    triedEndpoints: ENDPOINTS,
   })
 }
