@@ -1,13 +1,17 @@
 import { verifyToken } from './_utils/auth.js'
 
 const SITE_ID = process.env.JW_SITE_ID
-const API_SECRET = process.env.JW_API_SECRET
+const RAW_SECRET = process.env.JW_API_SECRET || ''
+
+// JW V2 API credentials are stored as "{keyId}-{secret}".
+// The Bearer token should be just the secret portion (after the first hyphen).
+const API_SECRET = RAW_SECRET.includes('-') ? RAW_SECRET.split('-').slice(1).join('-') : RAW_SECRET
 
 // JW Platform v2 — try all live content paths in priority order
 const ENDPOINTS = [
+  `https://api.jwplayer.com/v2/sites/${SITE_ID}/live_events`,
   `https://api.jwplayer.com/v2/sites/${SITE_ID}/broadcasts`,
   `https://api.jwplayer.com/v2/sites/${SITE_ID}/live_channels`,
-  `https://api.jwplayer.com/v2/sites/${SITE_ID}/live_events`,
   `https://api.jwplayer.com/v2/sites/${SITE_ID}/channels`,
 ]
 
@@ -49,5 +53,6 @@ export default async function handler(req, res) {
     error: `JW API error ${lastStatus}`,
     detail: lastBody,
     siteId: SITE_ID,
+    secretPrefix: API_SECRET.slice(0, 6) + '…',
   })
 }
