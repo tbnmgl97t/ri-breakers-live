@@ -3,9 +3,11 @@ import { verifyToken } from './_utils/auth.js'
 const SITE_ID = process.env.JW_SITE_ID
 const API_SECRET = process.env.JW_API_SECRET
 
-// JW Platform v2 has a few possible paths for live content depending on account type
+// JW Platform v2 — try all live content paths in priority order
 const ENDPOINTS = [
+  `https://api.jwplayer.com/v2/sites/${SITE_ID}/broadcasts`,
   `https://api.jwplayer.com/v2/sites/${SITE_ID}/live_channels`,
+  `https://api.jwplayer.com/v2/sites/${SITE_ID}/live_events`,
   `https://api.jwplayer.com/v2/sites/${SITE_ID}/channels`,
 ]
 
@@ -33,8 +35,8 @@ export default async function handler(req, res) {
 
       if (r.ok) {
         const data = JSON.parse(lastBody)
-        // Normalise — JW returns channels under different keys depending on endpoint
-        const channels = data.channels || data.channel_list || data.items || data.live_channels || []
+        // Normalise — JW returns items under different keys depending on endpoint
+        const channels = data.broadcasts || data.channels || data.live_channels || data.live_events || data.items || []
         return res.status(200).json({ channels, _endpoint: url })
       }
     } catch (err) {
