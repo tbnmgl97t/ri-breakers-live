@@ -4,8 +4,8 @@ import { Box, Paper, Typography } from '@mui/material'
 const JW_PLAYER_LIB = 'https://cdn.jwplayer.com/libraries/xJKVL03e.js'
 
 const CAMERAS = [
-  'https://cdn.jwplayer.com/live/broadcast/ycdpLdyf.m3u8',
-  'https://cdn.jwplayer.com/live/broadcast/L0ak6C6G.m3u8',
+  'https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8',
+  'https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8',
 ]
 
 function loadJWPlayerScript() {
