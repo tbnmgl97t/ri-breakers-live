@@ -270,8 +270,8 @@ function Dashboard({ token, onLogout }) {
     try {
       const res = await fetch('/api/channels', { headers: authHeader(token) })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to load channels')
-      setChannels(data.channels || data.channel_list || data.items || [])
+      if (!res.ok) throw new Error(`${data.error}${data.detail ? ` — ${data.detail}` : ''}`)
+      setChannels(data.channels || [])
     } catch (err) {
       setChannelError(err.message)
     } finally {
