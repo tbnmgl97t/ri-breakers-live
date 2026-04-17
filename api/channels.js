@@ -1,11 +1,8 @@
 import { verifyToken } from './_utils/auth.js'
 
 const SITE_ID = process.env.JW_SITE_ID
-const RAW_SECRET = process.env.JW_API_SECRET || ''
-
-// JW V2 API credentials are stored as "{keyId}-{secret}".
-// The Bearer token should be just the secret portion (after the first hyphen).
-const API_SECRET = RAW_SECRET.includes('-') ? RAW_SECRET.split('-').slice(1).join('-') : RAW_SECRET
+// Use the full credential string as the Bearer token (JW V2 format)
+const API_SECRET = process.env.JW_API_SECRET || ''
 
 // JW Platform v2 — try all live content paths in priority order
 const ENDPOINTS = [
