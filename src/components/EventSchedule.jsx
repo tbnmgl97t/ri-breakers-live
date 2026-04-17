@@ -2,31 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Box, Paper, Typography, Chip, Stack, Divider } from '@mui/material'
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
-
-const EVENTS = [
-  { date: '2026-04-16', label: 'Pro/Am', start: '8:00 AM', end: '3:00 PM', tz: 'EST' },
-  { date: '2026-04-17', label: 'Day 1', start: '8:00 AM', end: '5:00 PM', tz: 'EST' },
-  { date: '2026-04-18', label: 'Day 2', start: '8:00 AM', end: '5:00 PM', tz: 'EST' },
-  { date: '2026-04-19', label: 'Day 3', start: '8:00 AM', end: '5:00 PM', tz: 'EST' },
-]
-
-function parseEventWindow(dateStr, startTime, endTime) {
-  // Parse "April 16th, 2026 8:00 AM EST" into Date
-  const toDate = (date, time) => {
-    const [h, mAP] = time.split(':')
-    const [min, ap] = mAP.split(' ')
-    let hours = parseInt(h)
-    if (ap === 'PM' && hours !== 12) hours += 12
-    if (ap === 'AM' && hours === 12) hours = 0
-    const d = new Date(`${date}T00:00:00-05:00`)
-    d.setHours(hours, parseInt(min), 0, 0)
-    return d
-  }
-  return {
-    start: toDate(dateStr, startTime),
-    end: toDate(dateStr, endTime),
-  }
-}
+import { EVENTS, parseEventWindow } from './PreShowScreen'
 
 function formatCountdown(ms) {
   if (ms <= 0) return null
