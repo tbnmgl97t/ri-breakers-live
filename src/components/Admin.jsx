@@ -161,77 +161,90 @@ function EventDialog({ open, initial, onClose, onSave }) {
 // ─── Channel picker dialog ────────────────────────────────────────────────────
 
 function ChannelPickerDialog({ open, slot, event, channels, onClose, onPick }) {
+  const [manualUrl, setManualUrl] = useState('')
+
+  // Reset input when dialog opens
+  useEffect(() => {
+    if (open) setManualUrl(slot && event ? (slot === 1 ? event.camera1_url : event.camera2_url) || '' : '')
+  }, [open, slot, event])
+
+  function handleManualSave() {
+    onPick(manualUrl.trim() || null)
+  }
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm"
       PaperProps={{ sx: { bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 } }}
     >
-      <DialogTitle sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', pb: 0 }}>
-        Assign Channel → {event?.label} · Camera {slot}
+      <DialogTitle sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', pb: 1 }}>
+        Assign Camera {slot} → {event?.label}
       </DialogTitle>
-      <DialogContent sx={{ pt: 1.5 }}>
-        {channels.length === 0 ? (
-          <Typography variant="body2" sx={{ color: '#a8bcd4', textAlign: 'center', py: 3 }}>
-            No JW live channels found.
+      <DialogContent sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+
+        {/* Manual URL entry */}
+        <Box>
+          <Typography variant="caption" sx={{ color: '#a8bcd4', letterSpacing: '0.08em', fontWeight: 700, display: 'block', mb: 1 }}>
+            STREAM URL
           </Typography>
-        ) : (
-          <Stack spacing={1} sx={{ mt: 1 }}>
-            {/* clear option */}
-            <Paper
-              onClick={() => onPick(null)}
-              elevation={0}
-              sx={{
-                p: 1.5, border: '1px solid rgba(255,255,255,0.07)', borderRadius: 1.5,
-                cursor: 'pointer', '&:hover': { borderColor: '#e65d2c', bgcolor: 'rgba(230,93,44,0.05)' },
-              }}
-            >
-              <Typography variant="body2" sx={{ color: '#a8bcd4', fontStyle: 'italic' }}>— Clear assignment —</Typography>
-            </Paper>
-            {channels.map(ch => {
-              const streamUrl = ch.current_event?.stream_url || ch.stream_url || null
-              const isLive = ch.status === 'active'
-              return (
-                <Paper
-                  key={ch.id}
-                  onClick={() => onPick(streamUrl || ch.id)}
-                  elevation={0}
-                  sx={{
-                    p: 1.5, border: '1px solid rgba(255,255,255,0.07)', borderRadius: 1.5,
-                    cursor: streamUrl ? 'pointer' : 'default',
-                    opacity: streamUrl ? 1 : 0.5,
-                    '&:hover': streamUrl ? { borderColor: '#e65d2c', bgcolor: 'rgba(230,93,44,0.05)' } : {},
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>{ch.name || ch.id}</Typography>
-                      {streamUrl && (
-                        <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.65rem', wordBreak: 'break-all' }}>
-                          {streamUrl}
-                        </Typography>
-                      )}
-                      {!streamUrl && (
-                        <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.65rem' }}>No stream URL available</Typography>
-                      )}
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="https://cdn.jwplayer.com/live/broadcast/xxxxxxxx.m3u8"
+            value={manualUrl}
+            onChange={e => setManualUrl(e.target.value)}
+            inputProps={{ style: { fontFamily: 'monospace', fontSize: '0.8rem' } }}
+          />
+          <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.68rem', mt: 0.5, display: 'block' }}>
+            Paste the .m3u8 stream URL from your JW dashboard → Live Streaming → Broadcasts
+          </Typography>
+        </Box>
+
+        {/* JW channels from API (shown if available) */}
+        {channels.length > 0 && (
+          <Box>
+            <Typography variant="caption" sx={{ color: '#a8bcd4', letterSpacing: '0.08em', fontWeight: 700, display: 'block', mb: 1 }}>
+              OR PICK FROM JW CHANNELS
+            </Typography>
+            <Stack spacing={0.75}>
+              {channels.map(ch => {
+                const streamUrl = ch.stream_url || ch.current_event?.stream_url || null
+                const isLive = ch.status === 'active'
+                return (
+                  <Paper
+                    key={ch.id}
+                    onClick={() => streamUrl && setManualUrl(streamUrl)}
+                    elevation={0}
+                    sx={{
+                      p: 1.25, border: '1px solid rgba(255,255,255,0.07)', borderRadius: 1.5,
+                      cursor: streamUrl ? 'pointer' : 'default', opacity: streamUrl ? 1 : 0.5,
+                      '&:hover': streamUrl ? { borderColor: '#e65d2c', bgcolor: 'rgba(230,93,44,0.05)' } : {},
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff', fontSize: '0.82rem' }}>{ch.name || ch.id}</Typography>
+                      <Chip label={isLive ? 'LIVE' : (ch.status || 'idle').toUpperCase()} size="small"
+                        sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, bgcolor: isLive ? 'rgba(230,93,44,0.2)' : 'rgba(255,255,255,0.06)', color: isLive ? '#e65d2c' : '#a8bcd4' }}
+                      />
                     </Box>
-                    <Chip
-                      label={isLive ? 'LIVE' : (ch.status || 'idle').toUpperCase()}
-                      size="small"
-                      sx={{
-                        height: 18, fontSize: '0.6rem', fontWeight: 700,
-                        bgcolor: isLive ? 'rgba(230,93,44,0.2)' : 'rgba(255,255,255,0.06)',
-                        color: isLive ? '#e65d2c' : '#a8bcd4',
-                        flexShrink: 0,
-                      }}
-                    />
-                  </Box>
-                </Paper>
-              )
-            })}
-          </Stack>
+                    {streamUrl && <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.62rem' }}>{streamUrl}</Typography>}
+                  </Paper>
+                )
+              })}
+            </Stack>
+          </Box>
         )}
+
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
+      <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+        <Button onClick={() => onPick(null)} sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.75rem', mr: 'auto' }}>Clear</Button>
         <Button onClick={onClose} sx={{ color: '#a8bcd4' }}>Cancel</Button>
+        <Button
+          onClick={handleManualSave}
+          variant="contained"
+          sx={{ bgcolor: '#e65d2c', '&:hover': { bgcolor: '#c94e24' } }}
+        >
+          Assign
+        </Button>
       </DialogActions>
     </Dialog>
   )
@@ -475,78 +488,6 @@ function Dashboard({ token, onLogout }) {
           )}
         </Paper>
 
-        {/* ── JW Live Channels ─────────────────────── */}
-        <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
-          <Box sx={{
-            px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            borderBottom: '1px solid rgba(255,255,255,0.07)',
-            background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
-          }}>
-            <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
-              JW LIVE CHANNELS
-            </Typography>
-            <Tooltip title="Refresh channels">
-              <IconButton size="small" onClick={fetchChannels} sx={{ color: '#a8bcd4' }}>
-                <RefreshIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-
-          {channelError && (
-            <Alert severity="warning" sx={{ m: 2, fontSize: '0.8rem' }}>{channelError}</Alert>
-          )}
-
-          {loadingChannels ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-              <CircularProgress size={28} sx={{ color: '#e65d2c' }} />
-            </Box>
-          ) : channels.length === 0 && !channelError ? (
-            <Typography variant="body2" sx={{ color: '#a8bcd4', textAlign: 'center', py: 3 }}>
-              No live channels found in your JW account.
-            </Typography>
-          ) : (
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)' } }}>
-                  <TableCell>CHANNEL</TableCell>
-                  <TableCell>STATUS</TableCell>
-                  <TableCell>STREAM URL</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {channels.map(ch => {
-                  const streamUrl = ch.current_event?.stream_url || ch.stream_url || null
-                  const isLive = ch.status === 'active'
-                  return (
-                    <TableRow key={ch.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>{ch.name || ch.id}</Typography>
-                        <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontFamily: 'monospace', fontSize: '0.62rem' }}>{ch.id}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={isLive ? 'LIVE' : (ch.status || 'idle').toUpperCase()}
-                          size="small"
-                          sx={{
-                            height: 18, fontSize: '0.6rem', fontWeight: 700,
-                            bgcolor: isLive ? 'rgba(230,93,44,0.2)' : 'rgba(255,255,255,0.06)',
-                            color: isLive ? '#e65d2c' : '#a8bcd4',
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {streamUrl
-                          ? <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.65rem', wordBreak: 'break-all' }}>{streamUrl}</Typography>
-                          : <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>—</Typography>
-                        }
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </Paper>
 
       </Box>
 
