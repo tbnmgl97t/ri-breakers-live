@@ -146,11 +146,11 @@ function LiveFeed() {
             }}
           >
             <Typography variant="caption" sx={{ color: '#e65d2c', fontWeight: 700, letterSpacing: '0.1em', fontSize: '0.65rem' }}>
-              THE CATCH PRO-AM 2026
+              KEY WEST CLASSIC 2026
             </Typography>
             <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'rgba(168,188,212,0.5)', display: { xs: 'none', sm: 'block' } }} />
             <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.65rem' }}>
-              Apr 16–19 &nbsp;·&nbsp; Watch Rhode Island Breakers at The Catch Pro-Am
+              Apr 16–19 &nbsp;·&nbsp; Rhode Island Breakers at the Key West Classic
             </Typography>
 
             {/* Mobile schedule button — in banner on mobile */}
@@ -217,7 +217,7 @@ function LiveFeed() {
             }}
           >
             <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.65rem' }}>
-              © 2026 Rhode Island Breakers · The Catch Pro-Am
+              © 2026 Rhode Island Breakers · Key West Classic
             </Typography>
             <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.65rem' }}>
               All times Eastern (EST)
