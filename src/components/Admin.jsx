@@ -204,9 +204,11 @@ function ChannelPickerDialog({ open, slot, event, channels, onClose, onPick }) {
             >
               <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.6)', fontStyle: 'italic' }}>— Clear assignment —</Typography>
             </Paper>
-            {channels.map(ch => {
+            {[...channels].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(ch => {
               const isLive   = ch.status === 'active'
               const isActive = ch.stream_url === currentUrl && !!currentUrl
+              const STATUS_LABELS = { requested: 'Scheduled', scheduled: 'Scheduled', creating: 'Creating', active: 'Live', idle: 'Idle', stopping: 'Stopping', destroying: 'Destroying' }
+              const statusLabel = STATUS_LABELS[ch.status?.toLowerCase()] || ch.status || 'Idle'
               return (
                 <Paper
                   key={ch.id}
@@ -233,7 +235,7 @@ function ChannelPickerDialog({ open, slot, event, channels, onClose, onPick }) {
                       </Box>
                     </Box>
                     <Chip
-                      label={isLive ? 'LIVE' : (ch.status || 'idle').toUpperCase()}
+                      label={statusLabel}
                       size="small"
                       sx={{
                         height: 18, fontSize: '0.6rem', fontWeight: 700,
