@@ -4,7 +4,7 @@ import {
   Alert, IconButton, Chip, Divider, Tooltip,
   Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableBody, TableCell, TableHead, TableRow,
-  AppBar, Toolbar, Stack,
+  AppBar, Toolbar, Stack, ToggleButton, ToggleButtonGroup, MenuItem,
 } from '@mui/material'
 import { ThemeProvider, CssBaseline } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
@@ -234,28 +234,119 @@ function ChannelPickerDialog({ open, slot, event, channels, onClose, onPick }) {
   )
 }
 
+// ─── Helpers for Eastern ↔ UTC conversion ────────────────────────────────────
+
+// Returns true if a YYYY-MM-DD date falls in EDT window (Mar–Nov)
+function isEDT(dateStr) {
+  const month = parseInt(dateStr.split('-')[1], 10)
+  return month >= 3 && month <= 11
+}
+
+// Convert a local EST/EDT date+time to a UTC ISO string for the JW API
+function toUtcIso(dateStr, timeStr) {
+  if (!dateStr || !timeStr) return null
+  const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
+  if (!match) return null
+  let h = parseInt(match[1], 10)
+  const m = parseInt(match[2], 10)
+  const ampm = match[3]?.toUpperCase()
+  if (ampm === 'PM' && h !== 12) h += 12
+  if (ampm === 'AM' && h === 12) h = 0
+  const hh = String(h).padStart(2, '0')
+  const mm = String(m).padStart(2, '0')
+  const offset = isEDT(dateStr) ? '-04:00' : '-05:00'
+  try {
+    return new Date(`${dateStr}T${hh}:${mm}:00${offset}`).toISOString()
+  } catch {
+    return null
+  }
+}
+
 // ─── Create Live Stream dialog ───────────────────────────────────────────────
 
-function CreateStreamDialog({ open, token, onClose, onCreated }) {
-  const [title, setTitle] = useState('')
-  const [region, setRegion] = useState('us-east-1')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [result, setResult] = useState(null)
-  const [copied, setCopied] = useState(false)
+const INGEST_FORMATS = [
+  { value: 'rtmp',  label: 'RTMP' },
+  { value: 'rtmps', label: 'RTMPS' },
+  { value: 'srt',   label: 'SRT' },
+  { value: 'hls',   label: 'HLS Push' },
+]
 
+const REGIONS = [
+  { value: 'us-east-1',    label: 'US East (Virginia)' },
+  { value: 'us-west-2',    label: 'US West (Oregon)' },
+  { value: 'eu-west-1',    label: 'EU West (Ireland)' },
+  { value: 'ap-southeast-1', label: 'Asia Pacific (Singapore)' },
+]
+
+function CreateStreamDialog({ open, token, onClose, onCreated }) {
+  const [channelType, setChannelType] = useState('live_event')
+  const [title, setTitle]             = useState('')
+  const [region, setRegion]           = useState('us-east-1')
+  const [ingestFormat, setIngestFormat] = useState('rtmp')
+  const [startDate, setStartDate]     = useState('')
+  const [startTime, setStartTime]     = useState('8:00 AM')
+  const [endDate, setEndDate]         = useState('')
+  const [endTime, setEndTime]         = useState('5:00 PM')
+  const [ingestPointId, setIngestPointId] = useState('')
+  const [ingestPoints, setIngestPoints]   = useState([])
+  const [loadingPoints, setLoadingPoints] = useState(false)
+
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState('')
+  const [result, setResult]   = useState(null)
+  const [copied, setCopied]   = useState(false)
+
+  // Reset form when dialog opens; also load ingest points
   useEffect(() => {
-    if (open) { setTitle(''); setError(''); setResult(null); setCopied(false) }
-  }, [open])
+    if (!open) return
+    setChannelType('live_event')
+    setTitle('')
+    setRegion('us-east-1')
+    setIngestFormat('rtmp')
+    setStartDate('')
+    setStartTime('8:00 AM')
+    setEndDate('')
+    setEndTime('5:00 PM')
+    setIngestPointId('')
+    setError('')
+    setResult(null)
+    setCopied(false)
+
+    // Try to fetch static ingest points
+    setLoadingPoints(true)
+    fetch('/api/ingest-points', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setIngestPoints(data.ingest_points || []))
+      .catch(() => setIngestPoints([]))
+      .finally(() => setLoadingPoints(false))
+  }, [open, token])
 
   async function handleCreate() {
     setLoading(true)
     setError('')
     try {
+      const body = {
+        title,
+        region,
+        channel_type: channelType,
+        ingest_format: ingestFormat,
+        ingest_point_id: ingestPointId || undefined,
+      }
+
+      if (channelType === 'live_event') {
+        const startUtc = toUtcIso(startDate, startTime)
+        const endUtc   = toUtcIso(endDate, endTime)
+        if (!startUtc) throw new Error('Invalid start date/time — use format like "8:00 AM"')
+        const minsAway = (new Date(startUtc) - Date.now()) / 60_000
+        if (minsAway < 15) throw new Error('Start time must be at least 15 minutes from now')
+        body.start_time_utc = startUtc
+        if (endUtc) body.end_time_utc = endUtc
+      }
+
       const res = await fetch('/api/create-stream', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, region }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(`${data.error}${data.detail ? ` — ${data.detail}` : ''}`)
@@ -276,6 +367,18 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
     }
   }
 
+  const tzLabel = startDate ? (isEDT(startDate) ? 'EDT' : 'EST') : 'ET'
+
+  // Warn if start time is within 15 minutes of now
+  const startUtcIso = channelType === 'live_event' ? toUtcIso(startDate, startTime) : null
+  const minutesUntilStart = startUtcIso ? (new Date(startUtcIso) - Date.now()) / 60_000 : null
+  const tooSoon = minutesUntilStart !== null && minutesUntilStart < 15
+
+  const isValid = title && (channelType === 'always_on' || (startDate && !tooSoon))
+
+  // ─ label styling for section headers inside dialog
+  const sectionLabel = { color: '#a8bcd4', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.09em', mb: 0.75 }
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm"
       PaperProps={{ sx: { bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 } }}
@@ -285,24 +388,141 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
         Create Live Stream
       </DialogTitle>
 
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important' }}>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: '12px !important' }}>
         {error && <Alert severity="error" sx={{ fontSize: '0.8rem' }}>{error}</Alert>}
 
         {!result ? (
           <>
+            {/* Channel type */}
+            <Box>
+              <Typography sx={sectionLabel}>CHANNEL TYPE</Typography>
+              <ToggleButtonGroup
+                exclusive
+                value={channelType}
+                onChange={(_, v) => v && setChannelType(v)}
+                size="small"
+                fullWidth
+                sx={{
+                  '& .MuiToggleButton-root': {
+                    flex: 1, fontSize: '0.75rem', fontWeight: 700, borderColor: 'rgba(255,255,255,0.12)',
+                    color: '#a8bcd4', textTransform: 'none', py: 0.75,
+                  },
+                  '& .Mui-selected': { bgcolor: 'rgba(230,93,44,0.15) !important', color: '#e65d2c !important', borderColor: 'rgba(230,93,44,0.4) !important' },
+                }}
+              >
+                <ToggleButton value="live_event">Live Event</ToggleButton>
+                <ToggleButton value="always_on">24/7 Channel</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+
+            {/* Name */}
             <TextField
               fullWidth size="small" label="Stream Name" autoFocus
               value={title} onChange={e => setTitle(e.target.value)}
               placeholder="e.g. RI Breakers — Day 1 Camera 1"
             />
-            <TextField
-              fullWidth size="small" label="Region" select
-              value={region} onChange={e => setRegion(e.target.value)}
-              SelectProps={{ native: true }}
-            >
-              <option value="us-east-1">US East (us-east-1)</option>
-              <option value="eu-west-1">EU West (eu-west-1)</option>
-            </TextField>
+
+            {/* Ingest region + format side by side */}
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <TextField
+                select fullWidth size="small" label="Ingest Region"
+                value={region} onChange={e => setRegion(e.target.value)}
+              >
+                {REGIONS.map(r => <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>)}
+              </TextField>
+              <TextField
+                select fullWidth size="small" label="Ingest Format"
+                value={ingestFormat} onChange={e => setIngestFormat(e.target.value)}
+              >
+                {INGEST_FORMATS.map(f => <MenuItem key={f.value} value={f.value}>{f.label}</MenuItem>)}
+              </TextField>
+            </Box>
+
+            {/* Start date/time — only for live events */}
+            {channelType === 'live_event' && (
+              <>
+                <Box>
+                  <Typography sx={sectionLabel}>START ({tzLabel})</Typography>
+                  <Box sx={{ display: 'flex', gap: 1.5 }}>
+                    <TextField
+                      type="date" size="small" fullWidth label="Date"
+                      value={startDate} onChange={e => setStartDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                    />
+                    <TextField
+                      size="small" fullWidth label="Time"
+                      value={startTime} onChange={e => setStartTime(e.target.value)}
+                      placeholder="8:00 AM"
+                      error={tooSoon}
+                      helperText={
+                        tooSoon
+                          ? null
+                          : (startDate && startTime && toUtcIso(startDate, startTime)
+                              ? `UTC: ${new Date(toUtcIso(startDate, startTime)).toUTCString().replace(' GMT', ' UTC')}`
+                              : null)
+                      }
+                    />
+                  </Box>
+                  {tooSoon && (
+                    <Alert severity="warning" sx={{ mt: 1, fontSize: '0.78rem', py: 0.5 }}>
+                      Start time must be at least 15 minutes from now.
+                      {minutesUntilStart !== null && minutesUntilStart > -Infinity && (
+                        <> Currently {minutesUntilStart < 0 ? `${Math.abs(Math.round(minutesUntilStart))} min in the past` : `only ${Math.round(minutesUntilStart)} min away`}.</>
+                      )}
+                    </Alert>
+                  )}
+                </Box>
+
+                <Box>
+                  <Typography sx={sectionLabel}>END ({tzLabel})</Typography>
+                  <Box sx={{ display: 'flex', gap: 1.5 }}>
+                    <TextField
+                      type="date" size="small" fullWidth label="Date"
+                      value={endDate} onChange={e => setEndDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                    />
+                    <TextField
+                      size="small" fullWidth label="Time"
+                      value={endTime} onChange={e => setEndTime(e.target.value)}
+                      placeholder="5:00 PM"
+                      helperText={endDate && endTime && toUtcIso(endDate, endTime)
+                        ? `UTC: ${new Date(toUtcIso(endDate, endTime)).toUTCString().replace(' GMT', ' UTC')}`
+                        : null}
+                    />
+                  </Box>
+                </Box>
+              </>
+            )}
+
+            {/* Static ingest point */}
+            <Box>
+              <Typography sx={sectionLabel}>STATIC INGEST POINT (optional)</Typography>
+              {loadingPoints ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CircularProgress size={14} sx={{ color: '#a8bcd4' }} />
+                  <Typography variant="caption" sx={{ color: '#a8bcd4' }}>Loading ingest points…</Typography>
+                </Box>
+              ) : ingestPoints.length > 0 ? (
+                <TextField
+                  select fullWidth size="small" label="Ingest Point"
+                  value={ingestPointId} onChange={e => setIngestPointId(e.target.value)}
+                >
+                  <MenuItem value="">— None (auto-assign) —</MenuItem>
+                  {ingestPoints.map(p => (
+                    <MenuItem key={p.id} value={p.id}>
+                      {p.name}{p.region ? ` · ${p.region}` : ''}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              ) : (
+                <TextField
+                  fullWidth size="small" label="Ingest Point ID"
+                  value={ingestPointId} onChange={e => setIngestPointId(e.target.value)}
+                  placeholder="Leave blank to auto-assign"
+                  helperText="Enter the static ingest point ID from your JW dashboard"
+                />
+              )}
+            </Box>
           </>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -343,7 +563,7 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
         {!result && (
           <Button
             onClick={handleCreate}
-            disabled={!title || loading}
+            disabled={!isValid || loading}
             variant="contained"
             sx={{ bgcolor: '#e65d2c', '&:hover': { bgcolor: '#c94e24' } }}
           >
