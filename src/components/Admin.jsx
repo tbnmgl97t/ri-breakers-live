@@ -1190,7 +1190,13 @@ function Dashboard({ token, onLogout }) {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {channels.map(ch => {
+                {[...channels].sort((a, b) => {
+                  // Latest start date first; channels with no start date go to bottom
+                  if (!a.stream_start && !b.stream_start) return 0
+                  if (!a.stream_start) return 1
+                  if (!b.stream_start) return -1
+                  return new Date(b.stream_start) - new Date(a.stream_start)
+                }).map(ch => {
                   const isLive = ch.status === 'active'
                   const STATUS_LABELS = {
                     requested:  'Scheduled',
