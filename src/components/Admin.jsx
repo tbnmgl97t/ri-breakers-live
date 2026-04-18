@@ -919,6 +919,16 @@ function Dashboard({ token, onLogout }) {
               <TableBody>
                 {channels.map(ch => {
                   const isLive = ch.status === 'active'
+                  const STATUS_LABELS = {
+                    requested:  'Scheduled',
+                    scheduled:  'Scheduled',
+                    creating:   'Creating',
+                    active:     'Live',
+                    idle:       'Idle',
+                    stopping:   'Stopping',
+                    destroying: 'Destroying',
+                  }
+                  const statusLabel = STATUS_LABELS[ch.status?.toLowerCase()] || ch.status || 'Idle'
                   const fmtTime = iso => {
                     if (!iso) return '—'
                     return new Date(iso).toLocaleString('en-US', {
@@ -936,12 +946,12 @@ function Dashboard({ token, onLogout }) {
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={isLive ? 'LIVE' : (ch.status || 'idle').toUpperCase()}
+                          label={statusLabel}
                           size="small"
                           sx={{
                             height: 18, fontSize: '0.6rem', fontWeight: 700,
-                            bgcolor: isLive ? 'rgba(230,93,44,0.2)' : 'rgba(255,255,255,0.06)',
-                            color: isLive ? '#e65d2c' : '#a8bcd4',
+                            bgcolor: isLive ? 'rgba(230,93,44,0.2)' : ch.status === 'requested' ? 'rgba(33,150,243,0.15)' : 'rgba(255,255,255,0.06)',
+                            color: isLive ? '#e65d2c' : ch.status === 'requested' ? '#64b5f6' : '#a8bcd4',
                           }}
                         />
                       </TableCell>
