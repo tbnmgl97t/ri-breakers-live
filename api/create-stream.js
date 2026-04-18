@@ -12,7 +12,7 @@ export default async function handler(req, res) {
   const {
     title,
     region = 'us-east-1',
-    channel_type = 'live_event',
+    channel_type = 'live_event', // 'live_event' | 'always_on'
     ingest_format = 'rtmp',
     start_time_utc,
     end_time_utc,
@@ -22,31 +22,26 @@ export default async function handler(req, res) {
   if (!title) return res.status(400).json({ error: 'title is required' })
 
   try {
-    // Build JW API payload
+    // JW uses stream_type field with values "live_event" or "24/7"
+    const streamType = channel_type === 'always_on' ? '24/7' : 'live_event'
+
     const payload = {
-      metadata: { title },
+      metadata: {
+        title,
+        // For live events, schedule goes inside metadata
+        ...(streamType === 'live_event' && start_time_utc && { stream_start: start_time_utc }),
+        ...(streamType === 'live_event' && end_time_utc   && { stream_end:   end_time_utc   }),
+      },
+      stream_type:   streamType,
+      ingest_format: ingest_format,
       region,
     }
 
-    // Channel type: "live_event" or "always_on" (JW calls 24/7 "always_on")
-    if (channel_type) {
-      payload.channel_type = channel_type
-    }
-
-    // Schedule (only meaningful for live_event)
-    if (channel_type === 'live_event' && start_time_utc) {
-      payload.schedule = { start_time: start_time_utc }
-      if (end_time_utc) {
-        payload.schedule.end_time = end_time_utc
+    // Ingest point goes in relationships
+    if (ingest_point_id) {
+      payload.relationships = {
+        ingest_point: { id: ingest_point_id, type: 'ingest_point' },
       }
-    }
-
-    // Ingest settings
-    const ingestSettings = {}
-    if (ingest_format) ingestSettings.format = ingest_format
-    if (ingest_point_id) ingestSettings.ingest_point_id = ingest_point_id
-    if (Object.keys(ingestSettings).length > 0) {
-      payload.ingest_settings = ingestSettings
     }
 
     const r = await fetch(
@@ -73,11 +68,12 @@ export default async function handler(req, res) {
 
     const data = JSON.parse(body)
     return res.status(201).json({
-      id: data.id,
-      name: data.metadata?.title || data.title || title,
-      status: data.status,
-      stream_url: data.stream_url || data.hls_stream_url || data.playback_url || null,
-      raw: data,
+      id:         data.id,
+      name:       data.metadata?.title || title,
+      status:     data.metadata?.status || data.status,
+      stream_type: data.stream_type,
+      stream_url: data.metadata?.playout?.hls || null,
+      raw:        data,
     })
   } catch (err) {
     return res.status(500).json({ error: err.message })
