@@ -20,7 +20,7 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-export default function EventSchedule({ flat = false }) {
+export default function EventSchedule({ flat = false, events: eventsProp }) {
   const [now, setNow] = useState(new Date())
 
   useEffect(() => {
@@ -28,14 +28,22 @@ export default function EventSchedule({ flat = false }) {
     return () => clearInterval(id)
   }, [])
 
+  const displayEvents = (eventsProp || EVENTS).map(ev => ({
+    ...ev,
+    start: ev.start || ev.start_time,
+    end:   ev.end   || ev.end_time,
+  }))
+
   // Find the next or current event
-  const nextEvent = EVENTS.find(ev => {
+  const nextEvent = displayEvents.find(ev => {
     const { end } = parseEventWindow(ev.date, ev.start, ev.end)
     return end > now
   })
 
   const getStatus = (ev) => {
-    const { start, end } = parseEventWindow(ev.date, ev.start, ev.end)
+    const s = ev.start || ev.start_time
+    const e = ev.end   || ev.end_time
+    const { start, end } = parseEventWindow(ev.date, s, e)
     if (now >= start && now <= end) return 'live'
     if (now < start) return 'upcoming'
     return 'completed'
@@ -88,8 +96,9 @@ export default function EventSchedule({ flat = false }) {
       {/* Countdown to next event */}
       {nextEvent && (() => {
         const status = getStatus(nextEvent)
-        const { start } = parseEventWindow(nextEvent.date, nextEvent.start, nextEvent.end)
+        const { start } = parseEventWindow(nextEvent.date, nextEvent.start || nextEvent.start_time, nextEvent.end || nextEvent.end_time)
         const countdown = status === 'upcoming' ? formatCountdown(start - now) : null
+        const endLabel = nextEvent.end || nextEvent.end_time
 
         return status === 'live' || countdown ? (
           <Box
@@ -107,7 +116,7 @@ export default function EventSchedule({ flat = false }) {
             <AccessTimeIcon sx={{ color: '#e65d2c', fontSize: 16 }} />
             {status === 'live' ? (
               <Typography variant="body2" sx={{ color: '#e65d2c', fontWeight: 700 }}>
-                {nextEvent.label} is live now &mdash; ends {nextEvent.end} {nextEvent.tz}
+                {nextEvent.label} is live now &mdash; ends {endLabel} {nextEvent.tz}
               </Typography>
             ) : (
               <Typography variant="body2" sx={{ color: '#a8bcd4' }}>
@@ -123,7 +132,7 @@ export default function EventSchedule({ flat = false }) {
 
       {/* Days list */}
       <Stack divider={<Divider sx={{ borderColor: 'rgba(255,255,255,0.05)' }} />}>
-        {EVENTS.map((ev, i) => {
+        {displayEvents.map((ev, i) => {
           const status = getStatus(ev)
           const isLive = status === 'live'
           return (

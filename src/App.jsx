@@ -16,9 +16,24 @@ import CameraSelector from './components/CameraSelector'
 import CommandCenter from './components/CommandCenter'
 import EventSchedule from './components/EventSchedule'
 import PreShowScreen, { isAnyEventLive, parseEventWindow, EVENTS as FALLBACK_EVENTS } from './components/PreShowScreen'
+
+/** Flatten all tournament days into shape PreShowScreen / EventSchedule expect */
+function flattenTournamentDays(tournaments) {
+  return tournaments.flatMap(t =>
+    (t.days || []).map(d => ({
+      date:         d.date,
+      label:        d.label,
+      start:        d.start_time,
+      end:          d.end_time,
+      tz:           d.tz || 'EDT',
+      camera1_url:  d.camera1_url  || null,
+      camera2_url:  d.camera2_url  || null,
+    }))
+  ).sort((a, b) => a.date.localeCompare(b.date))
+}
 import Admin from './components/Admin'
 
-function ScheduleModal({ open, onClose }) {
+function ScheduleModal({ open, onClose, events }) {
   return (
     <Dialog
       open={open}
@@ -59,24 +74,12 @@ function ScheduleModal({ open, onClose }) {
         </IconButton>
       </DialogTitle>
       <DialogContent sx={{ p: 0 }}>
-        <EventSchedule flat />
+        <EventSchedule flat events={events} />
       </DialogContent>
     </Dialog>
   )
 }
 
-// Converts DB row format to the shape PreShowScreen / EventSchedule expect
-function dbRowToEvent(row) {
-  return {
-    date: row.date,
-    label: row.label,
-    start: row.start_time,
-    end: row.end_time,
-    tz: row.tz || 'EDT',
-    camera1_url: row.camera1_url || null,
-    camera2_url: row.camera2_url || null,
-  }
-}
 
 function LiveFeed() {
   const [selectedCamera, setSelectedCamera] = useState(0)
@@ -87,12 +90,15 @@ function LiveFeed() {
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('lg'))
   const live = isAnyEventLive(now, events)
 
-  // Fetch schedule from DB; fall back to hardcoded if unavailable
+  // Fetch tournaments from API; fall back to hardcoded days if unavailable
   useEffect(() => {
-    fetch('/api/schedule')
+    fetch('/api/tournaments')
       .then(r => r.ok ? r.json() : null)
-      .then(rows => {
-        if (rows && rows.length > 0) setEvents(rows.map(dbRowToEvent))
+      .then(tournaments => {
+        if (tournaments && tournaments.length > 0) {
+          const days = flattenTournamentDays(tournaments)
+          if (days.length > 0) setEvents(days)
+        }
       })
       .catch(() => {}) // silently use fallback
   }, [])
@@ -187,14 +193,14 @@ function LiveFeed() {
                     <CameraSelector selected={selectedCamera} onChange={setSelectedCamera} />
                   </>
                 ) : (
-                  <PreShowScreen />
+                  <PreShowScreen events={events} />
                 )}
               </Box>
             </Grid>
 
             {/* Event Schedule — desktop sidebar only */}
             <Grid item lg={4} sx={{ display: { xs: 'none', lg: 'block' } }}>
-              <EventSchedule />
+              <EventSchedule events={events} />
             </Grid>
 
             {/* Command Center — full width */}
@@ -227,7 +233,7 @@ function LiveFeed() {
       </Box>
 
       {/* Mobile schedule modal */}
-      <ScheduleModal open={scheduleOpen} onClose={() => setScheduleOpen(false)} />
+      <ScheduleModal open={scheduleOpen} onClose={() => setScheduleOpen(false)} events={events} />
     </ThemeProvider>
   )
 }

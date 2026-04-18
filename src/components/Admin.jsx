@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   Box, Paper, Typography, TextField, Button, CircularProgress,
-  Alert, IconButton, Chip, Divider, Tooltip, Snackbar,
+  Alert, IconButton, Chip, Divider, Tooltip, Snackbar, Collapse,
   Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableBody, TableCell, TableHead, TableRow,
   AppBar, Toolbar, Stack, ToggleButton, ToggleButtonGroup, MenuItem,
@@ -16,6 +16,10 @@ import VideocamIcon from '@mui/icons-material/Videocam'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import LiveTvIcon from '@mui/icons-material/LiveTv'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import ExpandLessIcon from '@mui/icons-material/ExpandLess'
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
+import LocationOnIcon from '@mui/icons-material/LocationOn'
 import theme from '../theme/theme'
 
 const SESSION_KEY = 'ri_admin_token'
@@ -24,6 +28,31 @@ const SESSION_KEY = 'ri_admin_token'
 
 function authHeader(token) {
   return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+}
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00')
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+function shortUrl(url) {
+  if (!url) return null
+  try {
+    const u = new URL(url)
+    return u.pathname.split('/').pop() || url
+  } catch {
+    return url.slice(-20)
+  }
+}
+
+function getTournamentDateRange(tournament) {
+  if (!tournament.days?.length) return null
+  const dates = tournament.days.map(d => d.date).sort()
+  const fmt = ds => new Date(ds + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const start = fmt(dates[0])
+  const end   = fmt(dates[dates.length - 1])
+  const year  = new Date(dates[0] + 'T12:00:00').getFullYear()
+  return start === end ? `${start}, ${year}` : `${start} – ${end}, ${year}`
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
@@ -101,16 +130,73 @@ function LoginScreen({ onLogin }) {
   )
 }
 
-// ─── Event dialog (create / edit) ─────────────────────────────────────────────
+// ─── Tournament dialog (create / edit) ────────────────────────────────────────
 
-const EMPTY_EVENT = { label: '', date: '', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'EDT' }
+const EMPTY_TOURNAMENT = { name: '', location: '' }
 
-function EventDialog({ open, initial, onClose, onSave }) {
-  const [form, setForm] = useState(EMPTY_EVENT)
+function TournamentDialog({ open, initial, onClose, onSave }) {
+  const [form, setForm] = useState(EMPTY_TOURNAMENT)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    setForm(initial ? { ...initial } : EMPTY_EVENT)
+    setForm(initial ? { name: initial.name || '', location: initial.location || '' } : EMPTY_TOURNAMENT)
+  }, [initial, open])
+
+  function set(field) {
+    return e => setForm(f => ({ ...f, [field]: e.target.value }))
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await onSave(form)
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs"
+      PaperProps={{ sx: { bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 } }}
+    >
+      <DialogTitle sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <EmojiEventsIcon sx={{ color: '#e65d2c', fontSize: 20 }} />
+        {initial?.id ? 'Edit Tournament' : 'New Tournament'}
+      </DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important' }}>
+        <TextField label="Tournament Name" value={form.name} onChange={set('name')} size="small" fullWidth autoFocus
+          placeholder="e.g. Key West Classic" />
+        <TextField label="Location" value={form.location} onChange={set('location')} size="small" fullWidth
+          placeholder="e.g. Key West, FL" />
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} sx={{ color: '#a8bcd4' }}>Cancel</Button>
+        <Button
+          onClick={handleSave}
+          disabled={!form.name || saving}
+          variant="contained"
+          sx={{ bgcolor: '#e65d2c', '&:hover': { bgcolor: '#c94e24' } }}
+        >
+          {saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Save'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+// ─── Day dialog (create / edit within a tournament) ───────────────────────────
+
+const EMPTY_DAY = { label: '', date: '', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'EDT' }
+
+function DayDialog({ open, initial, tournamentName, onClose, onSave }) {
+  const [form, setForm] = useState(EMPTY_DAY)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setForm(initial
+      ? { label: initial.label, date: initial.date, start_time: initial.start_time, end_time: initial.end_time, tz: initial.tz || 'EDT' }
+      : EMPTY_DAY)
   }, [initial, open])
 
   function set(field) {
@@ -133,11 +219,16 @@ function EventDialog({ open, initial, onClose, onSave }) {
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs"
       PaperProps={{ sx: { bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 } }}
     >
-      <DialogTitle sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', pb: 1 }}>
-        {initial?.id ? 'Edit Event' : 'New Event'}
+      <DialogTitle sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', pb: 0.5 }}>
+        {initial?.id ? 'Edit Day' : 'Add Day'}
+        {tournamentName && (
+          <Typography component="span" sx={{ color: '#a8bcd4', fontSize: '0.75rem', fontFamily: 'Poppins, sans-serif', fontWeight: 400, ml: 1 }}>
+            — {tournamentName}
+          </Typography>
+        )}
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important' }}>
-        <TextField label="Label" value={form.label} onChange={set('label')} size="small" fullWidth placeholder="Day 1" />
+        <TextField label="Label" value={form.label} onChange={set('label')} size="small" fullWidth autoFocus placeholder="e.g. Day 1" />
         <TextField label="Date" type="date" value={form.date} onChange={set('date')} size="small" fullWidth InputLabelProps={{ shrink: true }} />
         <Box sx={{ display: 'flex', gap: 1.5 }}>
           <TextField label="Start" value={form.start_time} onChange={set('start_time')} size="small" fullWidth placeholder="8:00 AM" />
@@ -162,26 +253,24 @@ function EventDialog({ open, initial, onClose, onSave }) {
 
 // ─── Channel picker dialog ────────────────────────────────────────────────────
 
-function ChannelPickerDialog({ open, slot, event, channels, onClose, onPick }) {
-  // Current assignment for this slot
-  const currentUrl = slot === 1 ? event?.camera1_url : event?.camera2_url
+function ChannelPickerDialog({ open, slot, day, channels, onClose, onPick }) {
+  const currentUrl = slot === 1 ? day?.camera1_url : day?.camera2_url
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm"
       PaperProps={{ sx: { bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 } }}
     >
       <DialogTitle sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', pb: 0 }}>
-        Assign Channel → {event?.label} · Camera {slot}
+        Assign Channel → {day?.label} · Camera {slot}
       </DialogTitle>
       <DialogContent sx={{ pt: 1.5 }}>
-        {/* Current assignment banner */}
         {currentUrl && (
           <Box sx={{ mb: 1.5, px: 1.5, py: 1, bgcolor: 'rgba(230,93,44,0.08)', border: '1px solid rgba(230,93,44,0.25)', borderRadius: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
             <CheckCircleIcon sx={{ fontSize: 14, color: '#e65d2c', flexShrink: 0 }} />
             <Box>
               <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.62rem', display: 'block' }}>CURRENTLY ASSIGNED</Typography>
               <Typography variant="caption" sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.75rem' }}>
-                {(slot === 1 ? event?.camera1_name : event?.camera2_name) || currentUrl}
+                {(slot === 1 ? day?.camera1_name : day?.camera2_name) || currentUrl}
               </Typography>
             </Box>
           </Box>
@@ -193,7 +282,6 @@ function ChannelPickerDialog({ open, slot, event, channels, onClose, onPick }) {
           </Typography>
         ) : (
           <Stack spacing={1} sx={{ mt: 1 }}>
-            {/* clear option */}
             <Paper
               onClick={() => onPick(null)}
               elevation={0}
@@ -260,13 +348,11 @@ function ChannelPickerDialog({ open, slot, event, channels, onClose, onPick }) {
 
 // ─── Helpers for Eastern ↔ UTC conversion ────────────────────────────────────
 
-// Returns true if a YYYY-MM-DD date falls in EDT window (Mar–Nov)
 function isEDT(dateStr) {
   const month = parseInt(dateStr.split('-')[1], 10)
   return month >= 3 && month <= 11
 }
 
-// Convert a local EST/EDT date+time to a UTC ISO string for the JW API
 function toUtcIso(dateStr, timeStr) {
   if (!dateStr || !timeStr) return null
   const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
@@ -318,7 +404,6 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
   const [result, setResult]   = useState(null)
   const [copied, setCopied]   = useState(false)
 
-  // Reset form when dialog opens; also load ingest points
   useEffect(() => {
     if (!open) return
     setChannelType('live_event')
@@ -333,21 +418,18 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
     setError('')
     setResult(null)
     setCopied(false)
-
-    // Fetch ingest availability on open (format may not be set yet — use rtmp default)
     loadIngestPoints('rtmp')
   }, [open, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fetch when format or time window changes
   useEffect(() => {
     if (!open) return
     loadIngestPoints()
   }, [ingestFormat, startDate, startTime, endDate, endTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function loadIngestPoints() {
-    const fmt       = ['rtmp', 'srt'].includes(ingestFormat) ? ingestFormat : 'rtmp'
-    const startUtc  = toUtcIso(startDate, startTime)
-    const endUtc    = toUtcIso(endDate, endTime)
+    const fmt      = ['rtmp', 'srt'].includes(ingestFormat) ? ingestFormat : 'rtmp'
+    const startUtc = toUtcIso(startDate, startTime)
+    const endUtc   = toUtcIso(endDate, endTime)
     setLoadingPoints(true)
     setIngestPointId('')
     let url = `/api/ingest-points?ingest_format=${fmt}`
@@ -407,15 +489,10 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
   }
 
   const tzLabel = startDate ? (isEDT(startDate) ? 'EDT' : 'EST') : 'ET'
-
-  // Warn if start time is within 15 minutes of now
   const startUtcIso = channelType === 'live_event' ? toUtcIso(startDate, startTime) : null
   const minutesUntilStart = startUtcIso ? (new Date(startUtcIso) - Date.now()) / 60_000 : null
   const tooSoon = minutesUntilStart !== null && minutesUntilStart < 15
-
   const isValid = title && (channelType === 'always_on' || (startDate && !tooSoon))
-
-  // ─ label styling for section headers inside dialog
   const sectionLabel = { color: '#a8bcd4', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.09em', mb: 0.75 }
 
   return (
@@ -432,7 +509,6 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
 
         {!result ? (
           <>
-            {/* Channel type */}
             <Box>
               <Typography sx={sectionLabel}>CHANNEL TYPE</Typography>
               <ToggleButtonGroup
@@ -454,14 +530,12 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
               </ToggleButtonGroup>
             </Box>
 
-            {/* Name */}
             <TextField
               fullWidth size="small" label="Stream Name" autoFocus
               value={title} onChange={e => setTitle(e.target.value)}
               placeholder="e.g. RI Breakers — Day 1 Camera 1"
             />
 
-            {/* Ingest region + format side by side */}
             <Box sx={{ display: 'flex', gap: 1.5 }}>
               <TextField
                 select fullWidth size="small" label="Ingest Region"
@@ -477,25 +551,20 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
               </TextField>
             </Box>
 
-            {/* Start date/time — only for live events */}
             {channelType === 'live_event' && (
               <>
                 <Box>
                   <Typography sx={sectionLabel}>START ({tzLabel})</Typography>
                   <Box sx={{ display: 'flex', gap: 1.5 }}>
-                    <TextField
-                      type="date" size="small" fullWidth label="Date"
+                    <TextField type="date" size="small" fullWidth label="Date"
                       value={startDate} onChange={e => setStartDate(e.target.value)}
                       InputLabelProps={{ shrink: true }}
                     />
-                    <TextField
-                      size="small" fullWidth label="Time"
+                    <TextField size="small" fullWidth label="Time"
                       value={startTime} onChange={e => setStartTime(e.target.value)}
-                      placeholder="8:00 AM"
-                      error={tooSoon}
+                      placeholder="8:00 AM" error={tooSoon}
                       helperText={
-                        tooSoon
-                          ? null
+                        tooSoon ? null
                           : (startDate && startTime && toUtcIso(startDate, startTime)
                               ? `UTC: ${new Date(toUtcIso(startDate, startTime)).toUTCString().replace(' GMT', ' UTC')}`
                               : null)
@@ -515,13 +584,11 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
                 <Box>
                   <Typography sx={sectionLabel}>END ({tzLabel})</Typography>
                   <Box sx={{ display: 'flex', gap: 1.5 }}>
-                    <TextField
-                      type="date" size="small" fullWidth label="Date"
+                    <TextField type="date" size="small" fullWidth label="Date"
                       value={endDate} onChange={e => setEndDate(e.target.value)}
                       InputLabelProps={{ shrink: true }}
                     />
-                    <TextField
-                      size="small" fullWidth label="Time"
+                    <TextField size="small" fullWidth label="Time"
                       value={endTime} onChange={e => setEndTime(e.target.value)}
                       placeholder="5:00 PM"
                       helperText={endDate && endTime && toUtcIso(endDate, endTime)
@@ -533,7 +600,6 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
               </>
             )}
 
-            {/* Ingest point availability */}
             <Box>
               <Typography sx={sectionLabel}>INGEST POINT (optional)</Typography>
               {loadingPoints ? (
@@ -623,32 +689,211 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
   )
 }
 
+// ─── Tournament card (with collapsible days table) ────────────────────────────
+
+function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEditDay, onDeleteDay, onOpenPicker, onEditTournament, onDeleteTournament }) {
+  const [expanded, setExpanded] = useState(true)
+
+  const dateRange = getTournamentDateRange(tournament)
+
+  return (
+    <Paper
+      elevation={0}
+      sx={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden', mb: 2 }}
+    >
+      {/* Tournament header row */}
+      <Box
+        sx={{
+          px: 2, py: 1.5,
+          display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap',
+          background: 'linear-gradient(90deg, rgba(230,93,44,0.06) 0%, transparent 70%)',
+          borderBottom: expanded ? '1px solid rgba(255,255,255,0.07)' : 'none',
+          cursor: 'pointer',
+          '&:hover': { background: 'linear-gradient(90deg, rgba(230,93,44,0.1) 0%, transparent 70%)' },
+        }}
+        onClick={() => setExpanded(v => !v)}
+      >
+        <IconButton size="small" sx={{ color: '#e65d2c', p: 0, mr: 0.5 }} onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}>
+          {expanded ? <ExpandLessIcon sx={{ fontSize: 20 }} /> : <ExpandMoreIcon sx={{ fontSize: 20 }} />}
+        </IconButton>
+
+        <EmojiEventsIcon sx={{ color: '#e65d2c', fontSize: 18, flexShrink: 0 }} />
+
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem', lineHeight: 1.2 }}>
+            {tournament.name}
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.25 }}>
+            {tournament.location && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                <LocationOnIcon sx={{ fontSize: 12, color: '#a8bcd4' }} />
+                <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.7rem' }}>{tournament.location}</Typography>
+              </Box>
+            )}
+            {dateRange && (
+              <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.7rem' }}>
+                {tournament.location ? '·' : ''} {dateRange}
+              </Typography>
+            )}
+            <Chip
+              label={`${tournament.days?.length || 0} day${(tournament.days?.length || 0) !== 1 ? 's' : ''}`}
+              size="small"
+              sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, bgcolor: 'rgba(255,255,255,0.07)', color: '#a8bcd4' }}
+            />
+          </Box>
+        </Box>
+
+        <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }} onClick={e => e.stopPropagation()}>
+          <Tooltip title="Add day">
+            <Button
+              size="small"
+              startIcon={<AddIcon sx={{ fontSize: '14px !important' }} />}
+              variant="outlined"
+              onClick={() => onAddDay(tournament)}
+              sx={{ fontSize: '0.7rem', py: 0.3, px: 1, borderColor: 'rgba(230,93,44,0.4)', color: '#e65d2c', '&:hover': { borderColor: '#e65d2c' } }}
+            >
+              Add Day
+            </Button>
+          </Tooltip>
+          <Tooltip title="Edit tournament">
+            <IconButton size="small" onClick={() => onEditTournament(tournament)} sx={{ color: '#a8bcd4', '&:hover': { color: '#fff' } }}>
+              <EditIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Delete tournament">
+            <IconButton size="small" onClick={() => onDeleteTournament(tournament)} sx={{ color: '#a8bcd4', '&:hover': { color: '#f44336' } }}>
+              <DeleteIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+
+      {/* Days table (collapsible) */}
+      <Collapse in={expanded}>
+        {!tournament.days?.length ? (
+          <Box sx={{ px: 3, py: 2.5, textAlign: 'center' }}>
+            <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.5)', fontStyle: 'italic', fontSize: '0.82rem' }}>
+              No days scheduled. Click "Add Day" to get started.
+            </Typography>
+          </Box>
+        ) : (
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)' } }}>
+                <TableCell>DAY</TableCell>
+                <TableCell>DATE</TableCell>
+                <TableCell>TIME</TableCell>
+                <TableCell>CAMERA 1</TableCell>
+                <TableCell>CAMERA 2</TableCell>
+                <TableCell align="right" />
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {tournament.days.map(day => (
+                <TableRow key={day.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff' }}>{day.label}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{formatDate(day.date)}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{day.start_time} – {day.end_time} {day.tz}</Typography>
+                  </TableCell>
+
+                  {[1, 2].map(slot => {
+                    const url  = slot === 1 ? day.camera1_url  : day.camera2_url
+                    const name = slot === 1 ? day.camera1_name : day.camera2_name
+                    return (
+                      <TableCell key={slot}>
+                        <Box
+                          onClick={() => onOpenPicker(day, tournament.id, slot)}
+                          sx={{
+                            display: 'inline-flex', alignItems: 'center', gap: 0.75,
+                            cursor: 'pointer', px: 1, py: 0.5, borderRadius: 1,
+                            border: '1px solid',
+                            borderColor: url ? 'rgba(76,175,80,0.5)' : 'rgba(255,255,255,0.1)',
+                            bgcolor: url ? 'rgba(76,175,80,0.07)' : 'transparent',
+                            '&:hover': { borderColor: url ? '#4caf50' : '#e65d2c', bgcolor: url ? 'rgba(76,175,80,0.12)' : 'rgba(230,93,44,0.06)' },
+                          }}
+                        >
+                          {url ? (
+                            <>
+                              <CheckCircleIcon sx={{ fontSize: 14, color: '#4caf50', flexShrink: 0 }} />
+                              <Box>
+                                <Typography variant="caption" sx={{ color: '#fff', fontWeight: 700, fontSize: '0.72rem', display: 'block', lineHeight: 1.3 }}>
+                                  {name || shortUrl(url)}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.55)', fontFamily: 'monospace', fontSize: '0.6rem', display: 'block', lineHeight: 1.2 }}>
+                                  {shortUrl(url)}
+                                </Typography>
+                              </Box>
+                            </>
+                          ) : (
+                            <>
+                              <VideocamIcon sx={{ fontSize: 13, color: 'rgba(168,188,212,0.4)' }} />
+                              <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.68rem' }}>Unassigned</Typography>
+                            </>
+                          )}
+                        </Box>
+                      </TableCell>
+                    )
+                  })}
+
+                  <TableCell align="right">
+                    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                      <Tooltip title="Edit day">
+                        <IconButton size="small" onClick={() => onEditDay(day, tournament)} sx={{ color: '#a8bcd4', '&:hover': { color: '#fff' } }}>
+                          <EditIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete day">
+                        <IconButton size="small" onClick={() => onDeleteDay(day, tournament)} sx={{ color: '#a8bcd4', '&:hover': { color: '#f44336' } }}>
+                          <DeleteIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Collapse>
+    </Paper>
+  )
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 function Dashboard({ token, onLogout }) {
-  const [events, setEvents] = useState([])
+  const [tournaments, setTournaments] = useState([])
   const [channels, setChannels] = useState([])
-  const [loadingEvents, setLoadingEvents] = useState(true)
+  const [loadingTournaments, setLoadingTournaments] = useState(true)
   const [loadingChannels, setLoadingChannels] = useState(true)
   const [error, setError] = useState('')
   const [channelError, setChannelError] = useState('')
 
-  const [eventDialog, setEventDialog] = useState({ open: false, initial: null })
-  const [pickerDialog, setPickerDialog] = useState({ open: false, slot: null, event: null })
+  const [tournamentDialog, setTournamentDialog] = useState({ open: false, initial: null })
+  const [dayDialog, setDayDialog] = useState({ open: false, initial: null, tournament: null })
+  const [pickerDialog, setPickerDialog] = useState({ open: false, slot: null, day: null, tournamentId: null })
   const [createStreamOpen, setCreateStreamOpen] = useState(false)
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' })
 
-  const fetchEvents = useCallback(async () => {
-    setLoadingEvents(true)
+  const showSnack = (message, severity = 'success') =>
+    setSnack({ open: true, message, severity })
+
+  const fetchTournaments = useCallback(async () => {
+    setLoadingTournaments(true)
     try {
-      const res = await fetch('/api/schedule')
+      const res = await fetch('/api/tournaments')
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to load schedule')
-      setEvents(data)
+      if (!res.ok) throw new Error(data.error || 'Failed to load tournaments')
+      setTournaments(data)
     } catch (err) {
       setError(err.message)
     } finally {
-      setLoadingEvents(false)
+      setLoadingTournaments(false)
     }
   }, [])
 
@@ -669,62 +914,114 @@ function Dashboard({ token, onLogout }) {
   }, [token, onLogout])
 
   useEffect(() => {
-    fetchEvents()
+    fetchTournaments()
     fetchChannels()
-  }, [fetchEvents, fetchChannels])
+  }, [fetchTournaments, fetchChannels])
 
-  async function saveEvent(form) {
-    const isEdit = !!form.id
-    const res = await fetch('/api/schedule', {
+  // ── Tournament CRUD ──────────────────────────────────────────────────────────
+
+  async function saveTournament(form) {
+    const isEdit = !!tournamentDialog.initial?.id
+    const res = await fetch('/api/tournaments', {
       method: isEdit ? 'PUT' : 'POST',
       headers: authHeader(token),
-      body: JSON.stringify(form),
+      body: JSON.stringify(isEdit ? { id: tournamentDialog.initial.id, ...form } : form),
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error)
-    await fetchEvents()
+    await fetchTournaments()
+    showSnack(isEdit ? `Tournament "${data.name}" updated` : `Tournament "${data.name}" created`)
   }
 
-  async function deleteEvent(id) {
-    if (!confirm('Delete this event?')) return
-    await fetch('/api/schedule', {
-      method: 'DELETE',
+  async function deleteTournament(tournament) {
+    if (!confirm(`Delete tournament "${tournament.name}" and all its days?\n\nThis cannot be undone.`)) return
+    try {
+      const res = await fetch('/api/tournaments', {
+        method: 'DELETE',
+        headers: authHeader(token),
+        body: JSON.stringify({ id: tournament.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      await fetchTournaments()
+      showSnack(`Tournament "${tournament.name}" deleted`)
+    } catch (err) {
+      showSnack(`Failed to delete: ${err.message}`, 'error')
+    }
+  }
+
+  // ── Day CRUD ─────────────────────────────────────────────────────────────────
+
+  async function saveDay(form) {
+    const { tournament } = dayDialog
+    const isEdit = !!dayDialog.initial?.id
+    const res = await fetch('/api/tournament-days', {
+      method: isEdit ? 'PUT' : 'POST',
       headers: authHeader(token),
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({
+        tournament_id: tournament.id,
+        ...(isEdit ? { id: dayDialog.initial.id } : {}),
+        ...form,
+      }),
     })
-    await fetchEvents()
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error)
+    await fetchTournaments()
+    showSnack(isEdit ? `"${data.label}" updated` : `"${data.label}" added to ${tournament.name}`)
   }
 
-  async function assignCamera(slot, picked) {
-    const ev = pickerDialog.event
-    if (!ev) return
+  async function deleteDay(day, tournament) {
+    if (!confirm(`Delete "${day.label}" from ${tournament.name}?`)) return
+    try {
+      const res = await fetch('/api/tournament-days', {
+        method: 'DELETE',
+        headers: authHeader(token),
+        body: JSON.stringify({ tournament_id: tournament.id, id: day.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      await fetchTournaments()
+      showSnack(`"${day.label}" deleted`)
+    } catch (err) {
+      showSnack(`Failed to delete: ${err.message}`, 'error')
+    }
+  }
+
+  // ── Camera assignment ─────────────────────────────────────────────────────────
+
+  async function assignCamera(slot, tournamentId, picked) {
+    const { day } = pickerDialog
+    if (!day) return
     const url  = picked?.url  ?? null
     const name = picked?.name ?? null
-    setPickerDialog({ open: false, slot: null, event: null })
+    setPickerDialog({ open: false, slot: null, day: null, tournamentId: null })
     try {
-      const res = await fetch('/api/schedule', {
+      const res = await fetch('/api/tournament-days', {
         method: 'PUT',
         headers: authHeader(token),
         body: JSON.stringify({
-          id: ev.id,
-          camera1_url:  slot === 1 ? url  : ev.camera1_url,
-          camera1_name: slot === 1 ? name : ev.camera1_name,
-          camera2_url:  slot === 2 ? url  : ev.camera2_url,
-          camera2_name: slot === 2 ? name : ev.camera2_name,
+          tournament_id: tournamentId,
+          id: day.id,
+          camera1_url:  slot === 1 ? url  : day.camera1_url,
+          camera1_name: slot === 1 ? name : day.camera1_name,
+          camera2_url:  slot === 2 ? url  : day.camera2_url,
+          camera2_name: slot === 2 ? name : day.camera2_name,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      await fetchEvents()
-      setSnack({ open: true, message: picked ? `Camera ${slot} assigned to ${ev.label}` : `Camera ${slot} cleared`, severity: 'success' })
+      await fetchTournaments()
+      showSnack(picked ? `Camera ${slot} assigned to ${day.label}` : `Camera ${slot} cleared`, 'success')
     } catch (err) {
-      setSnack({ open: true, message: `Failed to save: ${err.message}`, severity: 'error' })
+      showSnack(`Failed to save: ${err.message}`, 'error')
     }
   }
 
-  function openPicker(event, slot) {
-    setPickerDialog({ open: true, slot, event })
+  function openPicker(day, tournamentId, slot) {
+    setPickerDialog({ open: true, slot, day, tournamentId })
   }
+
+  // ── JW channel management ─────────────────────────────────────────────────────
 
   async function deleteChannel(id, name) {
     if (!confirm(`Destroy stream "${name}"?\n\nThis cannot be undone.`)) return
@@ -739,21 +1036,6 @@ function Dashboard({ token, onLogout }) {
       await fetchChannels()
     } catch (err) {
       alert(`Failed to delete stream: ${err.message}`)
-    }
-  }
-
-  function formatDate(dateStr) {
-    const d = new Date(dateStr + 'T12:00:00')
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-  }
-
-  function shortUrl(url) {
-    if (!url) return null
-    try {
-      const u = new URL(url)
-      return u.pathname.split('/').pop() || url
-    } catch {
-      return url.slice(-20)
     }
   }
 
@@ -790,20 +1072,23 @@ function Dashboard({ token, onLogout }) {
 
         {error && <Alert severity="error">{error}</Alert>}
 
-        {/* ── Schedule ─────────────────────────────── */}
+        {/* ── Tournaments ──────────────────────────── */}
         <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
-          {/* header */}
+          {/* Section header */}
           <Box sx={{
             px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             borderBottom: '1px solid rgba(255,255,255,0.07)',
             background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
           }}>
-            <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
-              SCHEDULE
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <EmojiEventsIcon sx={{ color: '#e65d2c', fontSize: 18 }} />
+              <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
+                TOURNAMENTS
+              </Typography>
+            </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Tooltip title="Refresh">
-                <IconButton size="small" onClick={fetchEvents} sx={{ color: '#a8bcd4' }}>
+                <IconButton size="small" onClick={fetchTournaments} sx={{ color: '#a8bcd4' }}>
                   <RefreshIcon sx={{ fontSize: 18 }} />
                 </IconButton>
               </Tooltip>
@@ -811,99 +1096,44 @@ function Dashboard({ token, onLogout }) {
                 size="small"
                 startIcon={<AddIcon />}
                 variant="outlined"
-                onClick={() => setEventDialog({ open: true, initial: null })}
+                onClick={() => setTournamentDialog({ open: true, initial: null })}
                 sx={{ fontSize: '0.72rem', borderColor: 'rgba(230,93,44,0.4)', color: '#e65d2c', '&:hover': { borderColor: '#e65d2c' } }}
               >
-                Add Event
+                Add Tournament
               </Button>
             </Box>
           </Box>
 
-          {loadingEvents ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-              <CircularProgress size={28} sx={{ color: '#e65d2c' }} />
-            </Box>
-          ) : (
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)' } }}>
-                  <TableCell>EVENT</TableCell>
-                  <TableCell>DATE</TableCell>
-                  <TableCell>TIME</TableCell>
-                  <TableCell>CAMERA 1</TableCell>
-                  <TableCell>CAMERA 2</TableCell>
-                  <TableCell align="right"></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {events.map(ev => (
-                  <TableRow key={ev.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff' }}>{ev.label}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{formatDate(ev.date)}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{ev.start_time} – {ev.end_time} {ev.tz}</Typography>
-                    </TableCell>
-                    {[1, 2].map(slot => {
-                      const url  = slot === 1 ? ev.camera1_url  : ev.camera2_url
-                      const name = slot === 1 ? ev.camera1_name : ev.camera2_name
-                      return (
-                        <TableCell key={slot}>
-                          <Box
-                            onClick={() => openPicker(ev, slot)}
-                            sx={{
-                              display: 'inline-flex', alignItems: 'center', gap: 0.75,
-                              cursor: 'pointer', px: 1, py: 0.5, borderRadius: 1,
-                              border: '1px solid',
-                              borderColor: url ? 'rgba(76,175,80,0.5)' : 'rgba(255,255,255,0.1)',
-                              bgcolor: url ? 'rgba(76,175,80,0.07)' : 'transparent',
-                              '&:hover': { borderColor: url ? '#4caf50' : '#e65d2c', bgcolor: url ? 'rgba(76,175,80,0.12)' : 'rgba(230,93,44,0.06)' },
-                            }}
-                          >
-                            {url ? (
-                              <>
-                                <CheckCircleIcon sx={{ fontSize: 14, color: '#4caf50', flexShrink: 0 }} />
-                                <Box>
-                                  <Typography variant="caption" sx={{ color: '#fff', fontWeight: 700, fontSize: '0.72rem', display: 'block', lineHeight: 1.3 }}>
-                                    {name || shortUrl(url)}
-                                  </Typography>
-                                  <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.55)', fontFamily: 'monospace', fontSize: '0.6rem', display: 'block', lineHeight: 1.2 }}>
-                                    {shortUrl(url)}
-                                  </Typography>
-                                </Box>
-                              </>
-                            ) : (
-                              <>
-                                <VideocamIcon sx={{ fontSize: 13, color: 'rgba(168,188,212,0.4)' }} />
-                                <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.68rem' }}>Unassigned</Typography>
-                              </>
-                            )}
-                          </Box>
-                        </TableCell>
-                      )
-                    })}
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                        <Tooltip title="Edit">
-                          <IconButton size="small" onClick={() => setEventDialog({ open: true, initial: ev })} sx={{ color: '#a8bcd4', '&:hover': { color: '#fff' } }}>
-                            <EditIcon sx={{ fontSize: 16 }} />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton size="small" onClick={() => deleteEvent(ev.id)} sx={{ color: '#a8bcd4', '&:hover': { color: '#f44336' } }}>
-                            <DeleteIcon sx={{ fontSize: 16 }} />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          <Box sx={{ p: loadingTournaments ? 0 : 2 }}>
+            {loadingTournaments ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                <CircularProgress size={28} sx={{ color: '#e65d2c' }} />
+              </Box>
+            ) : tournaments.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <EmojiEventsIcon sx={{ color: 'rgba(168,188,212,0.2)', fontSize: 40, mb: 1 }} />
+                <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.5)' }}>
+                  No tournaments yet. Click "Add Tournament" to create one.
+                </Typography>
+              </Box>
+            ) : (
+              tournaments.map(t => (
+                <TournamentCard
+                  key={t.id}
+                  tournament={t}
+                  channels={channels}
+                  token={token}
+                  onRefresh={fetchTournaments}
+                  onAddDay={tournament => setDayDialog({ open: true, initial: null, tournament })}
+                  onEditDay={(day, tournament) => setDayDialog({ open: true, initial: day, tournament })}
+                  onDeleteDay={deleteDay}
+                  onOpenPicker={openPicker}
+                  onEditTournament={tournament => setTournamentDialog({ open: true, initial: tournament })}
+                  onDeleteTournament={deleteTournament}
+                />
+              ))
+            )}
+          </Box>
         </Paper>
 
         {/* ── JW Live Channels ─────────────────────── */}
@@ -1057,20 +1287,28 @@ function Dashboard({ token, onLogout }) {
 
       </Box>
 
-      {/* Dialogs */}
-      <EventDialog
-        open={eventDialog.open}
-        initial={eventDialog.initial}
-        onClose={() => setEventDialog({ open: false, initial: null })}
-        onSave={saveEvent}
+      {/* ── Dialogs ─────────────────────────────────── */}
+      <TournamentDialog
+        open={tournamentDialog.open}
+        initial={tournamentDialog.initial}
+        onClose={() => setTournamentDialog({ open: false, initial: null })}
+        onSave={saveTournament}
+      />
+      <DayDialog
+        open={dayDialog.open}
+        initial={dayDialog.initial}
+        tournament={dayDialog.tournament}
+        tournamentName={dayDialog.tournament?.name}
+        onClose={() => setDayDialog({ open: false, initial: null, tournament: null })}
+        onSave={saveDay}
       />
       <ChannelPickerDialog
         open={pickerDialog.open}
         slot={pickerDialog.slot}
-        event={pickerDialog.event}
+        day={pickerDialog.day}
         channels={channels}
-        onClose={() => setPickerDialog({ open: false, slot: null, event: null })}
-        onPick={picked => assignCamera(pickerDialog.slot, picked)}
+        onClose={() => setPickerDialog({ open: false, slot: null, day: null, tournamentId: null })}
+        onPick={picked => assignCamera(pickerDialog.slot, pickerDialog.tournamentId, picked)}
       />
       <CreateStreamDialog
         open={createStreamOpen}

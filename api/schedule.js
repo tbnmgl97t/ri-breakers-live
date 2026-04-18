@@ -1,105 +1,101 @@
-import { verifyToken } from './_utils/auth.js'
+/**
+ * /api/schedule  — backward-compat read-only endpoint.
+ *
+ * GET returns a flat array of all days across all tournaments,
+ * matching the shape the frontend previously expected.
+ *
+ * Mutations (POST/PUT/DELETE) are still supported but route through
+ * tournament-days internally so that all data stays in the `tournaments`
+ * Edge Config key.
+ */
 
-const EC_ID = process.env.EDGE_CONFIG_ID
-const VERCEL_TOKEN = process.env.VERCEL_API_TOKEN
+import { verifyToken }                   from './_utils/auth.js'
+import { readTournaments, writeTournaments } from './_utils/tournaments.js'
 
-const DEFAULT_EVENTS = [
-  { id: 1, label: 'Pro/Am', date: '2026-04-16', start_time: '8:00 AM', end_time: '3:00 PM', tz: 'EDT', camera1_url: null, camera1_name: null, camera2_url: null, camera2_name: null },
-  { id: 2, label: 'Day 1',  date: '2026-04-17', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'EDT', camera1_url: null, camera1_name: null, camera2_url: null, camera2_name: null },
-  { id: 3, label: 'Day 2',  date: '2026-04-18', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'EDT', camera1_url: null, camera1_name: null, camera2_url: null, camera2_name: null },
-  { id: 4, label: 'Day 3',  date: '2026-04-19', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'EDT', camera1_url: null, camera1_name: null, camera2_url: null, camera2_name: null },
-]
-
-async function readSchedule() {
-  if (!EC_ID || !VERCEL_TOKEN) return [...DEFAULT_EVENTS]
-  try {
-    const res = await fetch(
-      `https://api.vercel.com/v1/edge-config/${EC_ID}/item/schedule`,
-      { headers: { Authorization: `Bearer ${VERCEL_TOKEN}` } }
-    )
-    if (res.status === 404) return [...DEFAULT_EVENTS]
-    if (!res.ok) throw new Error(`Read failed: ${res.status}`)
-    const item = await res.json()
-    return item.value ?? [...DEFAULT_EVENTS]
-  } catch (err) {
-    console.error('[schedule] read error:', err.message)
-    return [...DEFAULT_EVENTS]
-  }
-}
-
-async function writeSchedule(events) {
-  const res = await fetch(
-    `https://api.vercel.com/v1/edge-config/${EC_ID}/items`,
-    {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${VERCEL_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        items: [{ operation: 'upsert', key: 'schedule', value: events }],
-      }),
-    }
-  )
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Write failed: ${res.status} — ${text}`)
-  }
+/** Flatten all tournament days into a single sorted array. */
+function flattenDays(tournaments) {
+  return tournaments
+    .flatMap(t => (t.days || []).map(d => ({ ...d, tournament_id: t.id })))
+    .sort((a, b) => a.date.localeCompare(b.date))
 }
 
 export default async function handler(req, res) {
-  // GET is public — the main app reads schedule without auth
+  // GET is public — the main app reads without auth
   if (req.method !== 'GET' && !verifyToken(req.headers.authorization)) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
   try {
     if (req.method === 'GET') {
-      const events = await readSchedule()
-      return res.status(200).json(events)
+      const tournaments = await readTournaments()
+      return res.status(200).json(flattenDays(tournaments))
     }
 
-    const events = await readSchedule()
+    const tournaments = await readTournaments()
 
+    // ── Camera assignment (PUT) — find the day and update it ──────────────────
+    if (req.method === 'PUT') {
+      const { id, camera1_url, camera1_name, camera2_url, camera2_name,
+              label, date, start_time, end_time, tz } = req.body
+      if (!id) return res.status(400).json({ error: 'id is required' })
+
+      let found = false
+      const updated = tournaments.map(t => {
+        const dIdx = t.days.findIndex(d => d.id === Number(id))
+        if (dIdx === -1) return t
+        found = true
+        const days = [...t.days]
+        days[dIdx] = {
+          ...days[dIdx],
+          ...(label      !== undefined && { label }),
+          ...(date       !== undefined && { date }),
+          ...(start_time !== undefined && { start_time }),
+          ...(end_time   !== undefined && { end_time }),
+          ...(tz         !== undefined && { tz }),
+          camera1_url:  camera1_url  !== undefined ? (camera1_url  ?? null) : days[dIdx].camera1_url,
+          camera1_name: camera1_name !== undefined ? (camera1_name ?? null) : days[dIdx].camera1_name,
+          camera2_url:  camera2_url  !== undefined ? (camera2_url  ?? null) : days[dIdx].camera2_url,
+          camera2_name: camera2_name !== undefined ? (camera2_name ?? null) : days[dIdx].camera2_name,
+        }
+        return { ...t, days }
+      })
+      if (!found) return res.status(404).json({ error: 'Day not found' })
+      await writeTournaments(updated)
+      const flat = flattenDays(updated)
+      return res.status(200).json(flat.find(d => d.id === Number(id)))
+    }
+
+    // ── Add day (POST) — requires tournament_id ───────────────────────────────
     if (req.method === 'POST') {
-      const { label, date, start_time, end_time, tz = 'EDT', camera1_url = null, camera1_name = null, camera2_url = null, camera2_name = null } = req.body
+      const { tournament_id = 1, label, date, start_time, end_time,
+              tz = 'EDT', camera1_url = null, camera1_name = null,
+              camera2_url = null, camera2_name = null } = req.body
       if (!label || !date || !start_time || !end_time) {
         return res.status(400).json({ error: 'label, date, start_time, end_time are required' })
       }
-      const newId = Math.max(0, ...events.map(e => e.id)) + 1
-      const newEvent = { id: newId, label, date, start_time, end_time, tz, camera1_url, camera1_name, camera2_url, camera2_name }
-      const updated = [...events, newEvent].sort((a, b) => a.date.localeCompare(b.date))
-      await writeSchedule(updated)
-      return res.status(201).json(newEvent)
+      const tIdx = tournaments.findIndex(t => t.id === Number(tournament_id))
+      if (tIdx === -1) return res.status(404).json({ error: 'Tournament not found' })
+
+      const days = tournaments[tIdx].days || []
+      const newId = Math.max(0, ...days.map(d => d.id)) + 1
+      const created = { id: newId, label, date, start_time, end_time, tz,
+                        camera1_url, camera1_name, camera2_url, camera2_name }
+      const updatedT = { ...tournaments[tIdx], days: [...days, created].sort((a, b) => a.date.localeCompare(b.date)) }
+      const updated = [...tournaments]
+      updated[tIdx] = updatedT
+      await writeTournaments(updated)
+      return res.status(201).json(created)
     }
 
-    if (req.method === 'PUT') {
-      const { id, label, date, start_time, end_time, tz, camera1_url, camera1_name, camera2_url, camera2_name } = req.body
-      if (!id) return res.status(400).json({ error: 'id is required' })
-      const idx = events.findIndex(e => e.id === Number(id))
-      if (idx === -1) return res.status(404).json({ error: 'Event not found' })
-      const updated = [...events]
-      updated[idx] = {
-        ...updated[idx],
-        ...(label !== undefined && { label }),
-        ...(date !== undefined && { date }),
-        ...(start_time !== undefined && { start_time }),
-        ...(end_time !== undefined && { end_time }),
-        ...(tz !== undefined && { tz }),
-        camera1_url: camera1_url ?? null,
-        camera1_name: camera1_name ?? null,
-        camera2_url: camera2_url ?? null,
-        camera2_name: camera2_name ?? null,
-      }
-      await writeSchedule(updated)
-      return res.status(200).json(updated[idx])
-    }
-
+    // ── Delete day ────────────────────────────────────────────────────────────
     if (req.method === 'DELETE') {
       const { id } = req.body
       if (!id) return res.status(400).json({ error: 'id is required' })
-      const updated = events.filter(e => e.id !== Number(id))
-      await writeSchedule(updated)
+      const updated = tournaments.map(t => ({
+        ...t,
+        days: t.days.filter(d => d.id !== Number(id)),
+      }))
+      await writeTournaments(updated)
       return res.status(200).json({ ok: true })
     }
 

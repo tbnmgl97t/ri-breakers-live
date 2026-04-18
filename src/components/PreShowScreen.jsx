@@ -109,7 +109,7 @@ function CountdownUnit({ value, label }) {
   )
 }
 
-export default function PreShowScreen() {
+export default function PreShowScreen({ events: eventsProp }) {
   const [now, setNow] = useState(new Date())
 
   useEffect(() => {
@@ -117,7 +117,11 @@ export default function PreShowScreen() {
     return () => clearInterval(id)
   }, [])
 
-  const nextEvent = getNextEvent(now)
+  const activeEvents = eventsProp || EVENTS
+  const nextEvent = activeEvents.find(ev => {
+    const { end } = parseEventWindow(ev.date, ev.start || ev.start_time, ev.end || ev.end_time)
+    return end > now
+  })
 
   // Countdown values
   let d = 0, h = 0, m = 0, s = 0
