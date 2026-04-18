@@ -101,6 +101,75 @@ function calcDailyCosts(channels) {
   return Object.entries(map)
 }
 
+// ─── Cost Record dialog ───────────────────────────────────────────────────────
+
+const EMPTY_COST_RECORD = { date: '', label: '', channel_count: 2, start_time: '8:00 AM', end_time: '5:00 PM' }
+
+function CostRecordDialog({ open, initial, onClose, onSave }) {
+  const [form, setForm] = useState(EMPTY_COST_RECORD)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setForm(initial
+      ? { date: initial.date, label: initial.label, channel_count: initial.channel_count, start_time: initial.start_time, end_time: initial.end_time }
+      : EMPTY_COST_RECORD)
+  }, [initial, open])
+
+  function set(field) { return e => setForm(f => ({ ...f, [field]: e.target.value })) }
+
+  async function handleSave() {
+    setSaving(true)
+    try { await onSave(form); onClose() } finally { setSaving(false) }
+  }
+
+  // Preview cost
+  function parseH(t) {
+    const m = t?.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
+    if (!m) return 0
+    let h = parseInt(m[1]); const ap = m[3]?.toUpperCase()
+    if (ap === 'PM' && h !== 12) h += 12
+    if (ap === 'AM' && h === 12) h = 0
+    return h + parseInt(m[2]) / 60
+  }
+  const hrs = Math.max(0, parseH(form.end_time) - parseH(form.start_time)) * Number(form.channel_count || 0)
+  const preview = hrs > 0 ? fmtUSD(hrs * FIXED_RATE) : null
+
+  const isValid = form.date && form.label && form.channel_count > 0 && form.start_time && form.end_time
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs"
+      PaperProps={{ sx: { bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 } }}
+    >
+      <DialogTitle sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', pb: 1 }}>
+        {initial?.id ? 'Edit Historical Entry' : 'Add Historical Entry'}
+      </DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important' }}>
+        <TextField label="Date" type="date" size="small" fullWidth value={form.date} onChange={set('date')} InputLabelProps={{ shrink: true }} />
+        <TextField label="Label" size="small" fullWidth value={form.label} onChange={set('label')} placeholder="e.g. Pro/Am" />
+        <TextField label="# of Channels" type="number" size="small" fullWidth value={form.channel_count} onChange={set('channel_count')}
+          inputProps={{ min: 1, max: 10 }} />
+        <Box sx={{ display: 'flex', gap: 1.5 }}>
+          <TextField label="Start" size="small" fullWidth value={form.start_time} onChange={set('start_time')} placeholder="8:00 AM" />
+          <TextField label="End"   size="small" fullWidth value={form.end_time}   onChange={set('end_time')}   placeholder="5:00 PM" />
+        </Box>
+        {preview && (
+          <Box sx={{ bgcolor: 'rgba(230,93,44,0.07)', border: '1px solid rgba(230,93,44,0.2)', borderRadius: 1.5, px: 2, py: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{hrs.toFixed(1)} channel-hrs × ${FIXED_RATE}/hr</Typography>
+            <Typography sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.9rem' }}>{preview}</Typography>
+          </Box>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} sx={{ color: '#a8bcd4' }}>Cancel</Button>
+        <Button onClick={handleSave} disabled={!isValid || saving} variant="contained"
+          sx={{ bgcolor: '#e65d2c', '&:hover': { bgcolor: '#c94e24' } }}>
+          {saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Save'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
 // ─── Login ────────────────────────────────────────────────────────────────────
 
 function LoginScreen({ onLogin }) {
@@ -920,6 +989,9 @@ function Dashboard({ token, onLogout }) {
   const [error, setError] = useState('')
   const [channelError, setChannelError] = useState('')
 
+  const [costRecords, setCostRecords] = useState([])
+  const [costRecordDialog, setCostRecordDialog] = useState({ open: false, initial: null })
+
   const [tournamentDialog, setTournamentDialog] = useState({ open: false, initial: null })
   const [dayDialog, setDayDialog] = useState({ open: false, initial: null, tournament: null })
   const [pickerDialog, setPickerDialog] = useState({ open: false, slot: null, day: null, tournamentId: null })
@@ -959,10 +1031,48 @@ function Dashboard({ token, onLogout }) {
     }
   }, [token, onLogout])
 
+  const fetchCostRecords = useCallback(async () => {
+    try {
+      const res = await fetch('/api/cost-records')
+      if (res.ok) setCostRecords(await res.json())
+    } catch {}
+  }, [])
+
   useEffect(() => {
     fetchTournaments()
     fetchChannels()
-  }, [fetchTournaments, fetchChannels])
+    fetchCostRecords()
+  }, [fetchTournaments, fetchChannels, fetchCostRecords])
+
+  // ── Cost record CRUD ──────────────────────────────────────────────────────────
+
+  async function saveCostRecord(form) {
+    const isEdit = !!costRecordDialog.initial?.id
+    const res = await fetch('/api/cost-records', {
+      method: isEdit ? 'PUT' : 'POST',
+      headers: authHeader(token),
+      body: JSON.stringify(isEdit ? { id: costRecordDialog.initial.id, ...form } : form),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error)
+    await fetchCostRecords()
+  }
+
+  async function deleteCostRecord(id, label) {
+    if (!confirm(`Remove historical record for "${label}"?`)) return
+    try {
+      const res = await fetch('/api/cost-records', {
+        method: 'DELETE',
+        headers: authHeader(token),
+        body: JSON.stringify({ id }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error)
+      await fetchCostRecords()
+      showSnack(`Record for "${label}" removed`)
+    } catch (err) {
+      showSnack(`Failed: ${err.message}`, 'error')
+    }
+  }
 
   // ── Tournament CRUD ──────────────────────────────────────────────────────────
 
@@ -1387,45 +1497,94 @@ function Dashboard({ token, onLogout }) {
           )}
 
           {/* ── Daily cost summary ──────────────────────── */}
-          {!loadingChannels && channels.length > 0 && (() => {
-            const daily = calcDailyCosts(channels)
-            if (!daily.length) return null
-            const grandTotal = daily.reduce((s, [, d]) => s + d.total, 0)
+          {(() => {
+            // Merge live JW costs + historical records
+            const liveDailyMap = Object.fromEntries(calcDailyCosts(channels))
+
+            // Build historical entries keyed by same date-label format
+            const historicalEntries = costRecords.map(r => {
+              const dateLabel = new Date(r.date + 'T12:00:00').toLocaleDateString('en-US', {
+                weekday: 'short', month: 'short', day: 'numeric',
+              })
+              const hrs = r.total_hours ?? (r.hours_per_channel * r.channel_count)
+              return {
+                dateLabel,
+                date: r.date,
+                label: r.label,
+                id: r.id,
+                count: r.channel_count,
+                hours: hrs,
+                storage:   hrs * RATES.storage,
+                ingestion: hrs * RATES.ingestion,
+                playout:   hrs * RATES.playout,
+                total:     hrs * FIXED_RATE,
+                historical: true,
+              }
+            })
+
+            // Merge: historical entries go in their own rows, not combined with live
+            const allDays = [
+              ...Object.entries(liveDailyMap).map(([dateLabel, d]) => ({ dateLabel, ...d, historical: false })),
+              ...historicalEntries,
+            ].sort((a, b) => (b.date || b.dateLabel).localeCompare(a.date || a.dateLabel))
+
+            if (!allDays.length) return null
+            const grandTotal = allDays.reduce((s, d) => s + d.total, 0)
+
             return (
               <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.07)', px: 2, py: 2 }}>
-                <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', color: '#a8bcd4', mb: 1.5 }}>
-                  DAILY COST SUMMARY
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                  <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', color: '#a8bcd4' }}>
+                    DAILY COST SUMMARY
+                  </Typography>
+                  <Button
+                    size="small"
+                    startIcon={<AddIcon sx={{ fontSize: '13px !important' }} />}
+                    onClick={() => setCostRecordDialog({ open: true, initial: null })}
+                    sx={{ fontSize: '0.65rem', color: '#a8bcd4', py: 0.25, px: 1, '&:hover': { color: '#fff' } }}
+                  >
+                    Add Historical Entry
+                  </Button>
+                </Box>
                 <Stack spacing={1}>
-                  {daily.map(([dateLabel, d]) => (
+                  {allDays.map((d, i) => (
                     <Box
-                      key={dateLabel}
+                      key={d.historical ? `hist-${d.id}` : `live-${d.dateLabel}`}
                       sx={{
                         display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: { xs: 1.5, md: 3 },
                         px: 1.5, py: 1.25, borderRadius: 1.5,
-                        bgcolor: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)',
+                        bgcolor: d.historical ? 'rgba(168,188,212,0.03)' : 'rgba(255,255,255,0.025)',
+                        border: `1px solid ${d.historical ? 'rgba(168,188,212,0.1)' : 'rgba(255,255,255,0.06)'}`,
                       }}
                     >
                       {/* Date + channel count */}
-                      <Box sx={{ minWidth: 130 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff', fontSize: '0.82rem' }}>{dateLabel}</Typography>
-                        <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.65rem' }}>
+                      <Box sx={{ minWidth: 140 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: d.historical ? '#a8bcd4' : '#fff', fontSize: '0.82rem' }}>
+                            {d.dateLabel}
+                          </Typography>
+                          {d.historical && (
+                            <Chip label="archived" size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(168,188,212,0.1)', color: 'rgba(168,188,212,0.6)' }} />
+                          )}
+                        </Box>
+                        <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.65rem' }}>
                           {d.count} channel{d.count !== 1 ? 's' : ''} · {d.hours.toFixed(1)} hrs total
+                          {d.historical && d.label ? ` · ${d.label}` : ''}
                         </Typography>
                       </Box>
 
                       {/* Rate breakdown */}
-                      <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap' }}>
+                      <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap', flex: 1 }}>
                         {[
-                          { label: 'Storage',   rate: '$5/hr',  val: d.storage },
-                          { label: 'Ingestion', rate: '$8/hr',  val: d.ingestion },
-                          { label: 'Playout',   rate: '$6/hr',  val: d.playout },
+                          { label: 'Storage',   rate: '$5/hr', val: d.storage },
+                          { label: 'Ingestion', rate: '$8/hr', val: d.ingestion },
+                          { label: 'Playout',   rate: '$6/hr', val: d.playout },
                         ].map(item => (
                           <Box key={item.label}>
                             <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>
                               {item.label} <Box component="span" sx={{ color: 'rgba(168,188,212,0.4)' }}>({item.rate})</Box>
                             </Typography>
-                            <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 600, fontSize: '0.75rem' }}>
+                            <Typography variant="caption" sx={{ color: d.historical ? '#a8bcd4' : '#a8bcd4', fontWeight: 600, fontSize: '0.75rem' }}>
                               {fmtUSD(item.val)}
                             </Typography>
                           </Box>
@@ -1439,11 +1598,27 @@ function Dashboard({ token, onLogout }) {
                           <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.75rem' }}>variable</Typography>
                         </Box>
                       </Box>
+
+                      {/* Edit / delete for historical entries */}
+                      {d.historical && (
+                        <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
+                          <Tooltip title="Edit">
+                            <IconButton size="small" onClick={() => setCostRecordDialog({ open: true, initial: costRecords.find(r => r.id === d.id) })} sx={{ color: 'rgba(168,188,212,0.5)', '&:hover': { color: '#fff' } }}>
+                              <EditIcon sx={{ fontSize: 14 }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Remove">
+                            <IconButton size="small" onClick={() => deleteCostRecord(d.id, d.dateLabel)} sx={{ color: 'rgba(168,188,212,0.5)', '&:hover': { color: '#f44336' } }}>
+                              <DeleteIcon sx={{ fontSize: 14 }} />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      )}
                     </Box>
                   ))}
 
-                  {/* Grand total row */}
-                  {daily.length > 1 && (
+                  {/* Grand total */}
+                  {allDays.length > 1 && (
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5, pt: 0.5 }}>
                       <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em' }}>
                         TOTAL FIXED
@@ -1463,6 +1638,12 @@ function Dashboard({ token, onLogout }) {
       </Box>
 
       {/* ── Dialogs ─────────────────────────────────── */}
+      <CostRecordDialog
+        open={costRecordDialog.open}
+        initial={costRecordDialog.initial}
+        onClose={() => setCostRecordDialog({ open: false, initial: null })}
+        onSave={saveCostRecord}
+      />
       <TournamentDialog
         open={tournamentDialog.open}
         initial={tournamentDialog.initial}
