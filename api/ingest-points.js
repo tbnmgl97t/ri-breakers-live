@@ -20,11 +20,15 @@ export default async function handler(req, res) {
   }
 
   const ingest_format = req.query?.ingest_format || 'rtmp'
+  const start_date    = req.query?.start_date || ''
+  const end_date      = req.query?.end_date   || ''
 
   try {
-    const url =
+    let url =
       `https://api.jwplayer.com/v2/sites/${SITE_ID}/live/broadcast/ingest/availability/` +
       `?ingest_format=${encodeURIComponent(ingest_format)}&page=1&page_length=50`
+    if (start_date) url += `&start_date=${encodeURIComponent(start_date)}`
+    if (end_date)   url += `&end_date=${encodeURIComponent(end_date)}`
 
     const r = await fetch(url, {
       headers: {

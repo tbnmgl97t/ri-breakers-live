@@ -336,17 +336,22 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
     loadIngestPoints('rtmp')
   }, [open, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fetch when ingest format changes (only rtmp/srt are supported by the availability API)
+  // Re-fetch when format or time window changes
   useEffect(() => {
     if (!open) return
-    const fmt = ['rtmp', 'srt'].includes(ingestFormat) ? ingestFormat : 'rtmp'
-    loadIngestPoints(fmt)
-  }, [ingestFormat]) // eslint-disable-line react-hooks/exhaustive-deps
+    loadIngestPoints()
+  }, [ingestFormat, startDate, startTime, endDate, endTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function loadIngestPoints(fmt) {
+  function loadIngestPoints() {
+    const fmt       = ['rtmp', 'srt'].includes(ingestFormat) ? ingestFormat : 'rtmp'
+    const startUtc  = toUtcIso(startDate, startTime)
+    const endUtc    = toUtcIso(endDate, endTime)
     setLoadingPoints(true)
     setIngestPointId('')
-    fetch(`/api/ingest-points?ingest_format=${fmt}`, { headers: { Authorization: `Bearer ${token}` } })
+    let url = `/api/ingest-points?ingest_format=${fmt}`
+    if (startUtc) url += `&start_date=${encodeURIComponent(startUtc)}`
+    if (endUtc)   url += `&end_date=${encodeURIComponent(endUtc)}`
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => setIngestPoints(data.ingest_points || []))
       .catch(() => setIngestPoints([]))
@@ -538,7 +543,7 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
                 <TextField
                   select fullWidth size="small" label="Ingest Point"
                   value={ingestPointId} onChange={e => setIngestPointId(e.target.value)}
-                  helperText="Filtered by selected ingest format"
+                  helperText={startDate ? 'Availability checked against your selected time window' : 'Set start/end time to check time-based availability'}
                 >
                   <MenuItem value="">— Auto-assign —</MenuItem>
                   {ingestPoints.map(p => (
