@@ -522,10 +522,9 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
                 >
                   <MenuItem value="">— Auto-assign —</MenuItem>
                   {ingestPoints.map(p => (
-                    <MenuItem key={p.id} value={p.id} disabled={p.available === false}>
+                    <MenuItem key={p.id} value={p.id} disabled={!p.available}>
                       {p.name}
-                      {p.region ? ` · ${p.region}` : ''}
-                      {p.available === false ? ' (unavailable)' : ''}
+                      {!p.available ? ' — unavailable' : p.attached ? ' — in use' : ' — available'}
                     </MenuItem>
                   ))}
                 </TextField>

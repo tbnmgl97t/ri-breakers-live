@@ -3,31 +3,13 @@ import { verifyToken } from './_utils/auth.js'
 const SITE_ID = process.env.JW_SITE_ID
 const API_SECRET = process.env.JW_API_SECRET || ''
 
-function extractItems(data) {
-  // Try every known key JW might use
-  const candidates = [
-    data.ingest_points,
-    data.ingest_availability,
-    data.availability,
-    data.items,
-    data.results,
-    data.data,
-  ]
-  for (const c of candidates) {
-    if (Array.isArray(c) && c.length > 0) return c
-  }
-  // Maybe the response itself is the array
-  if (Array.isArray(data)) return data
-  return []
-}
-
 function normalise(p) {
   return {
-    id:         p.id   || p.ingest_point_id || p.point_id,
-    name:       p.name || p.label || p.title || p.id || p.ingest_point_id,
-    region:     p.region || p.ingest_region || p.geo_region || null,
-    ingest_url: p.ingest_url || p.rtmp_url || p.srt_url || p.url || null,
-    available:  p.available ?? p.is_available ?? true,
+    id:        p.id,
+    name:      p.metadata?.display_name || p.id,
+    available: p.metadata?.availability_status === 'available',
+    format:    p.metadata?.ingest_format || null,
+    attached:  p.metadata?.attached_stream_id || null,
   }
 }
 
@@ -59,10 +41,10 @@ export default async function handler(req, res) {
     }
 
     const data = JSON.parse(body)
-    const raw = extractItems(data)
+    const raw = data.ingests || []
     const ingest_points = raw.map(normalise).filter(p => p.id)
 
-    return res.status(200).json({ ingest_points, _raw_keys: Object.keys(data) })
+    return res.status(200).json({ ingest_points })
   } catch (err) {
     return res.status(500).json({ error: err.message })
   }
