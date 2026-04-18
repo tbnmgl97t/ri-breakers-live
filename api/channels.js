@@ -44,12 +44,14 @@ export default async function handler(req, res) {
         ingest_key:   rtmp?.key  || null,
       }
     })
-    // Sort: latest stream_start first; channels without a start date go last
+    // Sort: latest stream_start first; tie-break by name A→Z; no-start go last
     channels.sort((a, b) => {
-      if (!a.stream_start && !b.stream_start) return 0
+      if (!a.stream_start && !b.stream_start) return (a.name || '').localeCompare(b.name || '')
       if (!a.stream_start) return 1
       if (!b.stream_start) return -1
-      return new Date(b.stream_start) - new Date(a.stream_start)
+      const timeDiff = new Date(b.stream_start) - new Date(a.stream_start)
+      if (timeDiff !== 0) return timeDiff
+      return (a.name || '').localeCompare(b.name || '')
     })
 
     return res.status(200).json({ channels })

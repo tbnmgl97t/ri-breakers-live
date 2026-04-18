@@ -1191,11 +1191,13 @@ function Dashboard({ token, onLogout }) {
               </TableHead>
               <TableBody>
                 {[...channels].sort((a, b) => {
-                  // Latest start date first; channels with no start date go to bottom
-                  if (!a.stream_start && !b.stream_start) return 0
+                  // Latest start date first; tie-break by name A→Z; no-start go last
+                  if (!a.stream_start && !b.stream_start) return (a.name || '').localeCompare(b.name || '')
                   if (!a.stream_start) return 1
                   if (!b.stream_start) return -1
-                  return new Date(b.stream_start) - new Date(a.stream_start)
+                  const timeDiff = new Date(b.stream_start) - new Date(a.stream_start)
+                  if (timeDiff !== 0) return timeDiff
+                  return (a.name || '').localeCompare(b.name || '')
                 }).map(ch => {
                   const isLive = ch.status === 'active'
                   const STATUS_LABELS = {
