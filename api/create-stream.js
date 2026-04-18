@@ -71,7 +71,7 @@ export default async function handler(req, res) {
     return res.status(201).json({
       id:         data.id,
       name:       data.metadata?.title || title,
-      status:     data.metadata?.status || data.status,
+      status:     data.metadata?.status,
       stream_type: data.stream_type,
       stream_url: data.metadata?.playout?.hls || null,
       raw:        data,
