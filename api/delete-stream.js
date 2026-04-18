@@ -14,9 +14,9 @@ export default async function handler(req, res) {
 
   try {
     const r = await fetch(
-      `https://api.jwplayer.com/v2/sites/${SITE_ID}/live/broadcast/streams/${id}/`,
+      `https://api.jwplayer.com/v2/sites/${SITE_ID}/live/broadcast/streams/${id}/destroy/`,
       {
-        method: 'DELETE',
+        method: 'PUT',
         headers: {
           Authorization: API_SECRET,
           Accept: 'application/json',

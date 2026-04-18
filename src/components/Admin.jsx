@@ -686,7 +686,7 @@ function Dashboard({ token, onLogout }) {
   }
 
   async function deleteChannel(id, name) {
-    if (!confirm(`Delete stream "${name}"?\n\nThis cannot be undone.`)) return
+    if (!confirm(`Destroy stream "${name}"?\n\nThis cannot be undone.`)) return
     try {
       const res = await fetch('/api/delete-stream', {
         method: 'DELETE',
