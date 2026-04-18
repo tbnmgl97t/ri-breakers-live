@@ -657,6 +657,7 @@ function Dashboard({ token, onLogout }) {
     setChannelError('')
     try {
       const res = await fetch('/api/channels', { headers: authHeader(token) })
+      if (res.status === 401) { onLogout(); return }
       const data = await res.json()
       if (!res.ok) throw new Error(`${data.error}${data.detail ? ` — ${data.detail}` : ''}`)
       setChannels(data.channels || [])
@@ -665,7 +666,7 @@ function Dashboard({ token, onLogout }) {
     } finally {
       setLoadingChannels(false)
     }
-  }, [token])
+  }, [token, onLogout])
 
   useEffect(() => {
     fetchEvents()
