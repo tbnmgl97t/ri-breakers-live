@@ -913,6 +913,7 @@ function Dashboard({ token, onLogout }) {
                   <TableCell>START</TableCell>
                   <TableCell>END</TableCell>
                   <TableCell>STREAM URL</TableCell>
+                  <TableCell>INGEST</TableCell>
                   <TableCell />
                 </TableRow>
               </TableHead>
@@ -966,6 +967,32 @@ function Dashboard({ token, onLogout }) {
                           ? <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.65rem', wordBreak: 'break-all' }}>{ch.stream_url}</Typography>
                           : <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>—</Typography>
                         }
+                      </TableCell>
+                      <TableCell>
+                        {ch.ingest_url ? (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.6rem', width: 28 }}>URL</Typography>
+                              <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.6rem', wordBreak: 'break-all' }}>{ch.ingest_url}</Typography>
+                              <Tooltip title="Copy ingest URL">
+                                <IconButton size="small" onClick={() => navigator.clipboard.writeText(ch.ingest_url)} sx={{ color: '#a8bcd4', flexShrink: 0, p: 0.25 }}>
+                                  <ContentCopyIcon sx={{ fontSize: 11 }} />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.6rem', width: 28 }}>KEY</Typography>
+                              <Typography variant="caption" sx={{ color: '#e65d2c', fontFamily: 'monospace', fontSize: '0.6rem' }}>{ch.ingest_key}</Typography>
+                              <Tooltip title="Copy stream key">
+                                <IconButton size="small" onClick={() => navigator.clipboard.writeText(ch.ingest_key)} sx={{ color: '#a8bcd4', flexShrink: 0, p: 0.25 }}>
+                                  <ContentCopyIcon sx={{ fontSize: 11 }} />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </Box>
+                        ) : (
+                          <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>—</Typography>
+                        )}
                       </TableCell>
                       <TableCell align="right">
                         <Tooltip title="Delete stream">
