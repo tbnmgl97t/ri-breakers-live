@@ -312,14 +312,26 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
     setResult(null)
     setCopied(false)
 
-    // Try to fetch static ingest points
+    // Fetch ingest availability on open (format may not be set yet — use rtmp default)
+    loadIngestPoints('rtmp')
+  }, [open, token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-fetch when ingest format changes (only rtmp/srt are supported by the availability API)
+  useEffect(() => {
+    if (!open) return
+    const fmt = ['rtmp', 'srt'].includes(ingestFormat) ? ingestFormat : 'rtmp'
+    loadIngestPoints(fmt)
+  }, [ingestFormat]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function loadIngestPoints(fmt) {
     setLoadingPoints(true)
-    fetch('/api/ingest-points', { headers: { Authorization: `Bearer ${token}` } })
+    setIngestPointId('')
+    fetch(`/api/ingest-points?ingest_format=${fmt}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => setIngestPoints(data.ingest_points || []))
       .catch(() => setIngestPoints([]))
       .finally(() => setLoadingPoints(false))
-  }, [open, token])
+  }
 
   async function handleCreate() {
     setLoading(true)
@@ -494,23 +506,26 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
               </>
             )}
 
-            {/* Static ingest point */}
+            {/* Ingest point availability */}
             <Box>
-              <Typography sx={sectionLabel}>STATIC INGEST POINT (optional)</Typography>
+              <Typography sx={sectionLabel}>INGEST POINT (optional)</Typography>
               {loadingPoints ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
                   <CircularProgress size={14} sx={{ color: '#a8bcd4' }} />
-                  <Typography variant="caption" sx={{ color: '#a8bcd4' }}>Loading ingest points…</Typography>
+                  <Typography variant="caption" sx={{ color: '#a8bcd4' }}>Loading available ingest points…</Typography>
                 </Box>
               ) : ingestPoints.length > 0 ? (
                 <TextField
                   select fullWidth size="small" label="Ingest Point"
                   value={ingestPointId} onChange={e => setIngestPointId(e.target.value)}
+                  helperText="Filtered by selected ingest format"
                 >
-                  <MenuItem value="">— None (auto-assign) —</MenuItem>
+                  <MenuItem value="">— Auto-assign —</MenuItem>
                   {ingestPoints.map(p => (
-                    <MenuItem key={p.id} value={p.id}>
-                      {p.name}{p.region ? ` · ${p.region}` : ''}
+                    <MenuItem key={p.id} value={p.id} disabled={p.available === false}>
+                      {p.name}
+                      {p.region ? ` · ${p.region}` : ''}
+                      {p.available === false ? ' (unavailable)' : ''}
                     </MenuItem>
                   ))}
                 </TextField>
@@ -519,7 +534,7 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
                   fullWidth size="small" label="Ingest Point ID"
                   value={ingestPointId} onChange={e => setIngestPointId(e.target.value)}
                   placeholder="Leave blank to auto-assign"
-                  helperText="Enter the static ingest point ID from your JW dashboard"
+                  helperText="No ingest points returned — enter an ID manually or leave blank"
                 />
               )}
             </Box>
