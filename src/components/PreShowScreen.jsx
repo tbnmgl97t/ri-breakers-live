@@ -137,8 +137,8 @@ export default function PreShowScreen() {
     <Box
       sx={{
         width: '100%',
-        aspectRatio: '16 / 9',
-        minHeight: { xs: 220, sm: 300 },
+        aspectRatio: { xs: 'unset', sm: '16 / 9' },
+        minHeight: { xs: 380, sm: 300 },
         position: 'relative',
         borderRadius: 2,
         overflow: 'hidden',
@@ -194,8 +194,9 @@ export default function PreShowScreen() {
       <Box sx={{
         position: 'absolute', inset: 0, zIndex: 4,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        gap: { xs: 1.5, sm: 2, md: 2.5 },
+        gap: { xs: 1, sm: 2, md: 2.5 },
         px: 2,
+        py: { xs: 2, sm: 0 },
       }}>
 
         {/* Logo */}
@@ -204,8 +205,8 @@ export default function PreShowScreen() {
           src="https://ribreakersac.com/cdn/shop/files/RI-Breakers-Logo-WHITE.png?v=1774997726&width=200"
           alt="Rhode Island Breakers"
           sx={{
-            width: { xs: 64, sm: 88, md: 108 },
-            height: { xs: 64, sm: 88, md: 108 },
+            width: { xs: 52, sm: 88, md: 108 },
+            height: { xs: 52, sm: 88, md: 108 },
             objectFit: 'contain',
             filter: 'drop-shadow(0 0 18px rgba(230,93,44,0.55)) drop-shadow(0 0 40px rgba(230,93,44,0.2))',
           }}
