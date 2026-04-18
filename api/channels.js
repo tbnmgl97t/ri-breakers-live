@@ -30,12 +30,12 @@ export default async function handler(req, res) {
 
     const data = JSON.parse(body)
     const raw = data.streams || data.broadcast_streams || data.items || data.results || []
-    // Normalise each stream to a consistent shape
     const channels = raw.map(ch => ({
-      id: ch.id,
-      name: ch.title || ch.name || ch.id,
-      status: ch.status || 'idle',
-      stream_url: ch.stream_url || ch.hls_stream_url || ch.playback_url || null,
+      id:          ch.id,
+      name:        ch.metadata?.title || ch.id,
+      status:      ch.metadata?.status || 'idle',
+      stream_type: ch.stream_type || null,
+      stream_url:  ch.metadata?.playout?.hls || null,
     }))
     return res.status(200).json({ channels })
   } catch (err) {

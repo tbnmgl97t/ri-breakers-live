@@ -899,13 +899,15 @@ function Dashboard({ token, onLogout }) {
               </TableHead>
               <TableBody>
                 {channels.map(ch => {
-                  const streamUrl = ch.current_event?.stream_url || ch.stream_url || null
+                  const streamUrl = ch.stream_url || null
                   const isLive = ch.status === 'active'
                   return (
                     <TableRow key={ch.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>{ch.name || ch.id}</Typography>
-                        <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontFamily: 'monospace', fontSize: '0.62rem' }}>{ch.id}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>{ch.name}</Typography>
+                        <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontFamily: 'monospace', fontSize: '0.62rem' }}>
+                          {ch.id}{ch.stream_type ? ` · ${ch.stream_type}` : ''}
+                        </Typography>
                       </TableCell>
                       <TableCell>
                         <Chip
