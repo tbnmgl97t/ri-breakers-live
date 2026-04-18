@@ -685,6 +685,22 @@ function Dashboard({ token, onLogout }) {
     setPickerDialog({ open: true, slot, event })
   }
 
+  async function deleteChannel(id, name) {
+    if (!confirm(`Delete stream "${name}"?\n\nThis cannot be undone.`)) return
+    try {
+      const res = await fetch('/api/delete-stream', {
+        method: 'DELETE',
+        headers: authHeader(token),
+        body: JSON.stringify({ id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(`${data.error}${data.detail ? ` — ${data.detail}` : ''}`)
+      await fetchChannels()
+    } catch (err) {
+      alert(`Failed to delete stream: ${err.message}`)
+    }
+  }
+
   function formatDate(dateStr) {
     const d = new Date(dateStr + 'T12:00:00')
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
@@ -897,6 +913,7 @@ function Dashboard({ token, onLogout }) {
                   <TableCell>START</TableCell>
                   <TableCell>END</TableCell>
                   <TableCell>STREAM URL</TableCell>
+                  <TableCell />
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -939,6 +956,17 @@ function Dashboard({ token, onLogout }) {
                           ? <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.65rem', wordBreak: 'break-all' }}>{ch.stream_url}</Typography>
                           : <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>—</Typography>
                         }
+                      </TableCell>
+                      <TableCell align="right">
+                        <Tooltip title="Delete stream">
+                          <IconButton
+                            size="small"
+                            onClick={() => deleteChannel(ch.id, ch.name)}
+                            sx={{ color: '#a8bcd4', '&:hover': { color: '#f44336' } }}
+                          >
+                            <DeleteIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Tooltip>
                       </TableCell>
                     </TableRow>
                   )
