@@ -235,7 +235,7 @@ export default function PreShowScreen() {
               mt: 0.5,
             }}
           >
-            THE CATCH PRO-AM 2026
+            KEY WEST CLASSIC 2026
           </Typography>
         </Box>
 
