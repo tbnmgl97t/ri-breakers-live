@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   Box, Paper, Typography, TextField, Button, CircularProgress,
-  Alert, IconButton, Chip, Divider, Tooltip,
+  Alert, IconButton, Chip, Divider, Tooltip, Snackbar,
   Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableBody, TableCell, TableHead, TableRow,
   AppBar, Toolbar, Stack, ToggleButton, ToggleButtonGroup, MenuItem,
@@ -626,6 +626,7 @@ function Dashboard({ token, onLogout }) {
   const [eventDialog, setEventDialog] = useState({ open: false, initial: null })
   const [pickerDialog, setPickerDialog] = useState({ open: false, slot: null, event: null })
   const [createStreamOpen, setCreateStreamOpen] = useState(false)
+  const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' })
 
   const fetchEvents = useCallback(async () => {
     setLoadingEvents(true)
@@ -686,21 +687,28 @@ function Dashboard({ token, onLogout }) {
   async function assignCamera(slot, picked) {
     const ev = pickerDialog.event
     if (!ev) return
-    const url = picked?.url ?? null
+    const url  = picked?.url  ?? null
     const name = picked?.name ?? null
-    await fetch('/api/schedule', {
-      method: 'PUT',
-      headers: authHeader(token),
-      body: JSON.stringify({
-        id: ev.id,
-        camera1_url:  slot === 1 ? url  : ev.camera1_url,
-        camera1_name: slot === 1 ? name : ev.camera1_name,
-        camera2_url:  slot === 2 ? url  : ev.camera2_url,
-        camera2_name: slot === 2 ? name : ev.camera2_name,
-      }),
-    })
     setPickerDialog({ open: false, slot: null, event: null })
-    await fetchEvents()
+    try {
+      const res = await fetch('/api/schedule', {
+        method: 'PUT',
+        headers: authHeader(token),
+        body: JSON.stringify({
+          id: ev.id,
+          camera1_url:  slot === 1 ? url  : ev.camera1_url,
+          camera1_name: slot === 1 ? name : ev.camera1_name,
+          camera2_url:  slot === 2 ? url  : ev.camera2_url,
+          camera2_name: slot === 2 ? name : ev.camera2_name,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      await fetchEvents()
+      setSnack({ open: true, message: picked ? `Camera ${slot} assigned to ${ev.label}` : `Camera ${slot} cleared`, severity: 'success' })
+    } catch (err) {
+      setSnack({ open: true, message: `Failed to save: ${err.message}`, severity: 'error' })
+    }
   }
 
   function openPicker(event, slot) {
@@ -1059,6 +1067,21 @@ function Dashboard({ token, onLogout }) {
         onClose={() => setCreateStreamOpen(false)}
         onCreated={() => fetchChannels()}
       />
+
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={4000}
+        onClose={() => setSnack(s => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          severity={snack.severity}
+          onClose={() => setSnack(s => ({ ...s, open: false }))}
+          sx={{ width: '100%' }}
+        >
+          {snack.message}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }
