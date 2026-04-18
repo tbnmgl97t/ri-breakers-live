@@ -894,13 +894,21 @@ function Dashboard({ token, onLogout }) {
                 <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)' } }}>
                   <TableCell>CHANNEL</TableCell>
                   <TableCell>STATUS</TableCell>
+                  <TableCell>START</TableCell>
+                  <TableCell>END</TableCell>
                   <TableCell>STREAM URL</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {channels.map(ch => {
-                  const streamUrl = ch.stream_url || null
                   const isLive = ch.status === 'active'
+                  const fmtTime = iso => {
+                    if (!iso) return '—'
+                    return new Date(iso).toLocaleString('en-US', {
+                      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                      timeZone: 'America/New_York', timeZoneName: 'short',
+                    })
+                  }
                   return (
                     <TableRow key={ch.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
                       <TableCell>
@@ -921,8 +929,14 @@ function Dashboard({ token, onLogout }) {
                         />
                       </TableCell>
                       <TableCell>
-                        {streamUrl
-                          ? <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.65rem', wordBreak: 'break-all' }}>{streamUrl}</Typography>
+                        <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{fmtTime(ch.stream_start)}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{fmtTime(ch.stream_end)}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        {ch.stream_url
+                          ? <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.65rem', wordBreak: 'break-all' }}>{ch.stream_url}</Typography>
                           : <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>—</Typography>
                         }
                       </TableCell>
