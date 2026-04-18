@@ -22,19 +22,20 @@ export default async function handler(req, res) {
   if (!title) return res.status(400).json({ error: 'title is required' })
 
   try {
-    // JW uses stream_type field with values "live_event" or "24/7"
+    // JW determines stream type via options.stream_type
+    // "event" requires stream_start + stream_end inside options
+    // "24/7" needs no schedule
     const streamType = channel_type === 'always_on' ? '24/7' : 'event'
 
     const payload = {
-      metadata: {
-        title,
-        // For live events, schedule goes inside metadata
-        ...(streamType === 'live_event' && start_time_utc && { stream_start: start_time_utc }),
-        ...(streamType === 'live_event' && end_time_utc   && { stream_end:   end_time_utc   }),
-      },
-      stream_type:   streamType,
-      ingest_format: ingest_format,
+      metadata: { title },
+      ingest_format,
       region,
+      options: {
+        stream_type: streamType,
+        ...(streamType === 'event' && start_time_utc && { stream_start: start_time_utc }),
+        ...(streamType === 'event' && end_time_utc   && { stream_end:   end_time_utc   }),
+      },
     }
 
     // Ingest point goes in relationships
