@@ -55,6 +55,52 @@ function getTournamentDateRange(tournament) {
   return start === end ? `${start}, ${year}` : `${start} – ${end}, ${year}`
 }
 
+// ─── Cost helpers ─────────────────────────────────────────────────────────────
+
+const RATES = { storage: 5, ingestion: 8, playout: 6 }   // $/hr
+const FIXED_RATE = RATES.storage + RATES.ingestion + RATES.playout  // $19/hr
+
+function calcChannelCost(ch) {
+  if (!ch.stream_start) return null
+  const start = new Date(ch.stream_start)
+  // For channels still streaming, use now as end; otherwise use scheduled end
+  const end = ch.stream_end ? new Date(ch.stream_end) : new Date()
+  const hours = Math.max(0, (end - start) / 3_600_000)
+  return {
+    hours,
+    storage:   hours * RATES.storage,
+    ingestion: hours * RATES.ingestion,
+    playout:   hours * RATES.playout,
+    total:     hours * FIXED_RATE,
+  }
+}
+
+function fmtUSD(n) {
+  return '$' + n.toFixed(2)
+}
+
+// Group a list of channels into { dateLabel → { hours, storage, ingestion, playout, total, count } }
+function calcDailyCosts(channels) {
+  const map = {}
+  channels.forEach(ch => {
+    const cost = calcChannelCost(ch)
+    if (!cost || !ch.stream_start) return
+    const dateLabel = new Date(ch.stream_start).toLocaleDateString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York',
+    })
+    if (!map[dateLabel]) map[dateLabel] = { hours: 0, storage: 0, ingestion: 0, playout: 0, total: 0, count: 0 }
+    const d = map[dateLabel]
+    d.hours     += cost.hours
+    d.storage   += cost.storage
+    d.ingestion += cost.ingestion
+    d.playout   += cost.playout
+    d.total     += cost.total
+    d.count++
+  })
+  // Return entries sorted latest-date first (reuse the same order channels are sorted by)
+  return Object.entries(map)
+}
+
 // ─── Login ────────────────────────────────────────────────────────────────────
 
 function LoginScreen({ onLogin }) {
@@ -1186,6 +1232,7 @@ function Dashboard({ token, onLogout }) {
                   <TableCell>END</TableCell>
                   <TableCell>STREAM URL</TableCell>
                   <TableCell>INGEST</TableCell>
+                  <TableCell>COST</TableCell>
                   <TableCell />
                 </TableRow>
               </TableHead>
@@ -1274,6 +1321,53 @@ function Dashboard({ token, onLogout }) {
                           <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>—</Typography>
                         )}
                       </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const cost = calcChannelCost(ch)
+                          if (!cost) return <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)' }}>—</Typography>
+                          const isLive = ch.status === 'active'
+                          return (
+                            <Tooltip
+                              arrow
+                              title={
+                                <Box sx={{ p: 0.5, minWidth: 170 }}>
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mb: 0.25 }}>
+                                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>Duration</Typography>
+                                    <Typography variant="caption">{cost.hours.toFixed(2)} hrs{isLive ? ' (live)' : ''}</Typography>
+                                  </Box>
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>Storage ($5/hr)</Typography>
+                                    <Typography variant="caption">{fmtUSD(cost.storage)}</Typography>
+                                  </Box>
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>Ingestion ($8/hr)</Typography>
+                                    <Typography variant="caption">{fmtUSD(cost.ingestion)}</Typography>
+                                  </Box>
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>Playout ($6/hr)</Typography>
+                                    <Typography variant="caption">{fmtUSD(cost.playout)}</Typography>
+                                  </Box>
+                                  <Divider sx={{ my: 0.75, borderColor: 'rgba(255,255,255,0.15)' }} />
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                                    <Typography variant="caption" sx={{ fontWeight: 700 }}>Fixed total</Typography>
+                                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#e65d2c' }}>{fmtUSD(cost.total)}</Typography>
+                                  </Box>
+                                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', display: 'block', mt: 0.5 }}>+ CDN (variable)</Typography>
+                                </Box>
+                              }
+                            >
+                              <Box sx={{ cursor: 'default' }}>
+                                <Typography variant="caption" sx={{ color: '#fff', fontWeight: 700, fontSize: '0.75rem', display: 'block' }}>
+                                  {fmtUSD(cost.total)}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.62rem' }}>
+                                  {cost.hours.toFixed(1)} hrs{isLive ? ' ▸' : ''}
+                                </Typography>
+                              </Box>
+                            </Tooltip>
+                          )
+                        })()}
+                      </TableCell>
                       <TableCell align="right">
                         <Tooltip title="Delete stream">
                           <IconButton
@@ -1291,6 +1385,79 @@ function Dashboard({ token, onLogout }) {
               </TableBody>
             </Table>
           )}
+
+          {/* ── Daily cost summary ──────────────────────── */}
+          {!loadingChannels && channels.length > 0 && (() => {
+            const daily = calcDailyCosts(channels)
+            if (!daily.length) return null
+            const grandTotal = daily.reduce((s, [, d]) => s + d.total, 0)
+            return (
+              <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.07)', px: 2, py: 2 }}>
+                <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', color: '#a8bcd4', mb: 1.5 }}>
+                  DAILY COST SUMMARY
+                </Typography>
+                <Stack spacing={1}>
+                  {daily.map(([dateLabel, d]) => (
+                    <Box
+                      key={dateLabel}
+                      sx={{
+                        display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: { xs: 1.5, md: 3 },
+                        px: 1.5, py: 1.25, borderRadius: 1.5,
+                        bgcolor: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)',
+                      }}
+                    >
+                      {/* Date + channel count */}
+                      <Box sx={{ minWidth: 130 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff', fontSize: '0.82rem' }}>{dateLabel}</Typography>
+                        <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.65rem' }}>
+                          {d.count} channel{d.count !== 1 ? 's' : ''} · {d.hours.toFixed(1)} hrs total
+                        </Typography>
+                      </Box>
+
+                      {/* Rate breakdown */}
+                      <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap' }}>
+                        {[
+                          { label: 'Storage',   rate: '$5/hr',  val: d.storage },
+                          { label: 'Ingestion', rate: '$8/hr',  val: d.ingestion },
+                          { label: 'Playout',   rate: '$6/hr',  val: d.playout },
+                        ].map(item => (
+                          <Box key={item.label}>
+                            <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>
+                              {item.label} <Box component="span" sx={{ color: 'rgba(168,188,212,0.4)' }}>({item.rate})</Box>
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 600, fontSize: '0.75rem' }}>
+                              {fmtUSD(item.val)}
+                            </Typography>
+                          </Box>
+                        ))}
+                        <Box sx={{ borderLeft: '1px solid rgba(255,255,255,0.08)', pl: 2.5 }}>
+                          <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>Fixed total</Typography>
+                          <Typography variant="caption" sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.75rem' }}>{fmtUSD(d.total)}</Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>CDN</Typography>
+                          <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.75rem' }}>variable</Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+                  ))}
+
+                  {/* Grand total row */}
+                  {daily.length > 1 && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5, pt: 0.5 }}>
+                      <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em' }}>
+                        TOTAL FIXED
+                      </Typography>
+                      <Typography sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '1rem', fontFamily: "'Bayon', sans-serif", letterSpacing: '0.04em' }}>
+                        {fmtUSD(grandTotal)}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.65rem' }}>+ CDN</Typography>
+                    </Box>
+                  )}
+                </Stack>
+              </Box>
+            )
+          })()}
         </Paper>
 
       </Box>
