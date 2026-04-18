@@ -44,6 +44,14 @@ export default async function handler(req, res) {
         ingest_key:   rtmp?.key  || null,
       }
     })
+    // Sort: latest stream_start first; channels without a start date go last
+    channels.sort((a, b) => {
+      if (!a.stream_start && !b.stream_start) return 0
+      if (!a.stream_start) return 1
+      if (!b.stream_start) return -1
+      return new Date(b.stream_start) - new Date(a.stream_start)
+    })
+
     return res.status(200).json({ channels })
   } catch (err) {
     return res.status(500).json({ error: err.message })
