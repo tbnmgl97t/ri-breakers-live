@@ -272,10 +272,8 @@ const INGEST_FORMATS = [
 ]
 
 const REGIONS = [
-  { value: 'us-east-1',    label: 'US East (Virginia)' },
-  { value: 'us-west-2',    label: 'US West (Oregon)' },
-  { value: 'eu-west-1',    label: 'EU West (Ireland)' },
-  { value: 'ap-southeast-1', label: 'Asia Pacific (Singapore)' },
+  { value: 'us-east-1', label: 'US East (us-east-1)' },
+  { value: 'eu-west-1', label: 'EU West (eu-west-1)' },
 ]
 
 function CreateStreamDialog({ open, token, onClose, onCreated }) {
