@@ -14,6 +14,8 @@ import LogoutIcon from '@mui/icons-material/Logout'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import VideocamIcon from '@mui/icons-material/Videocam'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import LiveTvIcon from '@mui/icons-material/LiveTv'
 import theme from '../theme/theme'
 
 const SESSION_KEY = 'ri_admin_token'
@@ -232,6 +234,127 @@ function ChannelPickerDialog({ open, slot, event, channels, onClose, onPick }) {
   )
 }
 
+// ─── Create Live Stream dialog ───────────────────────────────────────────────
+
+function CreateStreamDialog({ open, token, onClose, onCreated }) {
+  const [title, setTitle] = useState('')
+  const [region, setRegion] = useState('us-east-1')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [result, setResult] = useState(null)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (open) { setTitle(''); setError(''); setResult(null); setCopied(false) }
+  }, [open])
+
+  async function handleCreate() {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/create-stream', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, region }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(`${data.error}${data.detail ? ` — ${data.detail}` : ''}`)
+      setResult(data)
+      onCreated(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function copyUrl() {
+    if (result?.stream_url) {
+      navigator.clipboard.writeText(result.stream_url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm"
+      PaperProps={{ sx: { bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 } }}
+    >
+      <DialogTitle sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <LiveTvIcon sx={{ color: '#e65d2c', fontSize: 20 }} />
+        Create Live Stream
+      </DialogTitle>
+
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important' }}>
+        {error && <Alert severity="error" sx={{ fontSize: '0.8rem' }}>{error}</Alert>}
+
+        {!result ? (
+          <>
+            <TextField
+              fullWidth size="small" label="Stream Name" autoFocus
+              value={title} onChange={e => setTitle(e.target.value)}
+              placeholder="e.g. RI Breakers — Day 1 Camera 1"
+            />
+            <TextField
+              fullWidth size="small" label="Region" select
+              value={region} onChange={e => setRegion(e.target.value)}
+              SelectProps={{ native: true }}
+            >
+              <option value="us-east-1">US East (us-east-1)</option>
+              <option value="eu-west-1">EU West (eu-west-1)</option>
+            </TextField>
+          </>
+        ) : (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Alert severity="success" sx={{ fontSize: '0.8rem' }}>
+              Live stream <strong>{result.name}</strong> created successfully.
+            </Alert>
+            <Box sx={{ bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1.5, p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 700, letterSpacing: '0.08em' }}>STREAM ID</Typography>
+                <Typography variant="caption" sx={{ color: '#fff', fontFamily: 'monospace' }}>{result.id}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 700, letterSpacing: '0.08em' }}>STATUS</Typography>
+                <Chip label={result.status || 'created'} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, bgcolor: 'rgba(255,255,255,0.06)', color: '#a8bcd4' }} />
+              </Box>
+              {result.stream_url && (
+                <Box>
+                  <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 700, letterSpacing: '0.08em', display: 'block', mb: 0.5 }}>STREAM URL</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(0,0,0,0.3)', borderRadius: 1, px: 1.5, py: 0.75 }}>
+                    <Typography variant="caption" sx={{ color: '#e65d2c', fontFamily: 'monospace', fontSize: '0.65rem', flex: 1, wordBreak: 'break-all' }}>
+                      {result.stream_url}
+                    </Typography>
+                    <Tooltip title={copied ? 'Copied!' : 'Copy URL'}>
+                      <IconButton size="small" onClick={copyUrl} sx={{ color: copied ? '#4caf50' : '#a8bcd4', flexShrink: 0 }}>
+                        <ContentCopyIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          </Box>
+        )}
+      </DialogContent>
+
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} sx={{ color: '#a8bcd4' }}>{result ? 'Close' : 'Cancel'}</Button>
+        {!result && (
+          <Button
+            onClick={handleCreate}
+            disabled={!title || loading}
+            variant="contained"
+            sx={{ bgcolor: '#e65d2c', '&:hover': { bgcolor: '#c94e24' } }}
+          >
+            {loading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Create'}
+          </Button>
+        )}
+      </DialogActions>
+    </Dialog>
+  )
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 function Dashboard({ token, onLogout }) {
@@ -244,6 +367,7 @@ function Dashboard({ token, onLogout }) {
 
   const [eventDialog, setEventDialog] = useState({ open: false, initial: null })
   const [pickerDialog, setPickerDialog] = useState({ open: false, slot: null, event: null })
+  const [createStreamOpen, setCreateStreamOpen] = useState(false)
 
   const fetchEvents = useCallback(async () => {
     setLoadingEvents(true)
@@ -498,11 +622,22 @@ function Dashboard({ token, onLogout }) {
             <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
               JW LIVE CHANNELS
             </Typography>
-            <Tooltip title="Refresh channels">
-              <IconButton size="small" onClick={fetchChannels} sx={{ color: '#a8bcd4' }}>
-                <RefreshIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Tooltip title="Refresh channels">
+                <IconButton size="small" onClick={fetchChannels} sx={{ color: '#a8bcd4' }}>
+                  <RefreshIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+              <Button
+                size="small"
+                startIcon={<LiveTvIcon sx={{ fontSize: '14px !important' }} />}
+                variant="outlined"
+                onClick={() => setCreateStreamOpen(true)}
+                sx={{ fontSize: '0.72rem', borderColor: 'rgba(230,93,44,0.4)', color: '#e65d2c', '&:hover': { borderColor: '#e65d2c' } }}
+              >
+                New Live Stream
+              </Button>
+            </Box>
           </Box>
 
           {channelError && (
@@ -576,7 +711,13 @@ function Dashboard({ token, onLogout }) {
         event={pickerDialog.event}
         channels={channels}
         onClose={() => setPickerDialog({ open: false, slot: null, event: null })}
-        onPick={url => assignCamera(pickerDialog.slot, url)}
+        onPick={picked => assignCamera(pickerDialog.slot, picked)}
+      />
+      <CreateStreamDialog
+        open={createStreamOpen}
+        token={token}
+        onClose={() => setCreateStreamOpen(false)}
+        onCreated={() => fetchChannels()}
       />
     </Box>
   )
