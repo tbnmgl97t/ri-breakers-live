@@ -163,6 +163,9 @@ function EventDialog({ open, initial, onClose, onSave }) {
 // ─── Channel picker dialog ────────────────────────────────────────────────────
 
 function ChannelPickerDialog({ open, slot, event, channels, onClose, onPick }) {
+  // Current assignment for this slot
+  const currentUrl = slot === 1 ? event?.camera1_url : event?.camera2_url
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm"
       PaperProps={{ sx: { bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 } }}
@@ -171,6 +174,19 @@ function ChannelPickerDialog({ open, slot, event, channels, onClose, onPick }) {
         Assign Channel → {event?.label} · Camera {slot}
       </DialogTitle>
       <DialogContent sx={{ pt: 1.5 }}>
+        {/* Current assignment banner */}
+        {currentUrl && (
+          <Box sx={{ mb: 1.5, px: 1.5, py: 1, bgcolor: 'rgba(230,93,44,0.08)', border: '1px solid rgba(230,93,44,0.25)', borderRadius: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CheckCircleIcon sx={{ fontSize: 14, color: '#e65d2c', flexShrink: 0 }} />
+            <Box>
+              <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.62rem', display: 'block' }}>CURRENTLY ASSIGNED</Typography>
+              <Typography variant="caption" sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.75rem' }}>
+                {(slot === 1 ? event?.camera1_name : event?.camera2_name) || currentUrl}
+              </Typography>
+            </Box>
+          </Box>
+        )}
+
         {channels.length === 0 ? (
           <Typography variant="body2" sx={{ color: '#a8bcd4', textAlign: 'center', py: 3 }}>
             No JW live channels found.
@@ -189,26 +205,32 @@ function ChannelPickerDialog({ open, slot, event, channels, onClose, onPick }) {
               <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.6)', fontStyle: 'italic' }}>— Clear assignment —</Typography>
             </Paper>
             {channels.map(ch => {
-              const isLive = ch.status === 'active'
+              const isLive   = ch.status === 'active'
+              const isActive = ch.stream_url === currentUrl && !!currentUrl
               return (
                 <Paper
                   key={ch.id}
                   onClick={() => ch.stream_url && onPick({ url: ch.stream_url, name: ch.name })}
                   elevation={0}
                   sx={{
-                    p: 1.5, border: '1px solid rgba(255,255,255,0.07)', borderRadius: 1.5,
+                    p: 1.5, borderRadius: 1.5,
+                    border: `1px solid ${isActive ? 'rgba(230,93,44,0.6)' : 'rgba(255,255,255,0.07)'}`,
+                    bgcolor: isActive ? 'rgba(230,93,44,0.1)' : 'transparent',
                     cursor: ch.stream_url ? 'pointer' : 'default',
                     opacity: ch.stream_url ? 1 : 0.5,
-                    '&:hover': ch.stream_url ? { borderColor: '#e65d2c', bgcolor: 'rgba(230,93,44,0.05)' } : {},
+                    '&:hover': ch.stream_url ? { borderColor: '#e65d2c', bgcolor: 'rgba(230,93,44,0.07)' } : {},
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>{ch.name}</Typography>
-                      {ch.stream_url
-                        ? <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.65rem', wordBreak: 'break-all' }}>{ch.stream_url}</Typography>
-                        : <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.65rem' }}>No stream URL available</Typography>
-                      }
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                      {isActive && <CheckCircleIcon sx={{ fontSize: 14, color: '#e65d2c', flexShrink: 0 }} />}
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: isActive ? '#e65d2c' : '#fff' }}>{ch.name}</Typography>
+                        {ch.stream_url
+                          ? <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.62rem', wordBreak: 'break-all' }}>{ch.stream_url}</Typography>
+                          : <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.65rem' }}>No stream URL available</Typography>
+                        }
+                      </Box>
                     </Box>
                     <Chip
                       label={isLive ? 'LIVE' : (ch.status || 'idle').toUpperCase()}
@@ -817,27 +839,28 @@ function Dashboard({ token, onLogout }) {
                               display: 'inline-flex', alignItems: 'center', gap: 0.75,
                               cursor: 'pointer', px: 1, py: 0.5, borderRadius: 1,
                               border: '1px solid',
-                              borderColor: url ? 'rgba(230,93,44,0.5)' : 'rgba(255,255,255,0.1)',
-                              bgcolor: url ? 'rgba(230,93,44,0.08)' : 'transparent',
-                              '&:hover': { borderColor: '#e65d2c', bgcolor: 'rgba(230,93,44,0.1)' },
+                              borderColor: url ? 'rgba(76,175,80,0.5)' : 'rgba(255,255,255,0.1)',
+                              bgcolor: url ? 'rgba(76,175,80,0.07)' : 'transparent',
+                              '&:hover': { borderColor: url ? '#4caf50' : '#e65d2c', bgcolor: url ? 'rgba(76,175,80,0.12)' : 'rgba(230,93,44,0.06)' },
                             }}
                           >
                             {url ? (
                               <>
-                                <CheckCircleIcon sx={{ fontSize: 12, color: '#e65d2c' }} />
+                                <CheckCircleIcon sx={{ fontSize: 14, color: '#4caf50', flexShrink: 0 }} />
                                 <Box>
-                                  <Typography variant="caption" sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.7rem', display: 'block', lineHeight: 1.2 }}>
+                                  <Typography variant="caption" sx={{ color: '#fff', fontWeight: 700, fontSize: '0.72rem', display: 'block', lineHeight: 1.3 }}>
                                     {name || shortUrl(url)}
                                   </Typography>
-                                  {name && (
-                                    <Typography variant="caption" sx={{ color: 'rgba(230,93,44,0.6)', fontFamily: 'monospace', fontSize: '0.6rem', display: 'block', lineHeight: 1.2 }}>
-                                      {shortUrl(url)}
-                                    </Typography>
-                                  )}
+                                  <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.55)', fontFamily: 'monospace', fontSize: '0.6rem', display: 'block', lineHeight: 1.2 }}>
+                                    {shortUrl(url)}
+                                  </Typography>
                                 </Box>
                               </>
                             ) : (
-                              <><VideocamIcon sx={{ fontSize: 12, color: '#a8bcd4' }} /><Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>Assign</Typography></>
+                              <>
+                                <VideocamIcon sx={{ fontSize: 13, color: 'rgba(168,188,212,0.4)' }} />
+                                <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.68rem' }}>Unassigned</Typography>
+                              </>
                             )}
                           </Box>
                         </TableCell>
