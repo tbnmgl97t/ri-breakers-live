@@ -38,13 +38,13 @@ export default function Header({ live = false }) {
                 color: '#fff',
               }}
             >
-              KEY WEST CLASSIC
+              RHODE ISLAND BREAKERS
             </Typography>
             <Typography
               variant="caption"
               sx={{ color: '#a8bcd4', fontSize: { xs: '0.6rem', sm: '0.7rem' }, letterSpacing: '0.08em' }}
             >
-              RHODE ISLAND BREAKERS
+              SPORT FISHING CHAMPIONSHIP
             </Typography>
           </Box>
         </Box>
