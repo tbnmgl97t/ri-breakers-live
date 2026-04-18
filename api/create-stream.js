@@ -54,7 +54,7 @@ export default async function handler(req, res) {
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${API_SECRET}`,
+          Authorization: API_SECRET,
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },

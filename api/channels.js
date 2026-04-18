@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     const url = `https://api.jwplayer.com/v2/sites/${SITE_ID}/live/broadcast/streams/?page_length=50`
     const r = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${API_SECRET}`,
+        Authorization: API_SECRET,
         Accept: 'application/json',
       },
     })

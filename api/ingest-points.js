@@ -19,7 +19,7 @@ export default async function handler(req, res) {
 
     const r = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${API_SECRET}`,
+        Authorization: API_SECRET,
         Accept: 'application/json',
       },
     })
