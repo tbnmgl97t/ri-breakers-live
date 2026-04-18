@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 
   try {
     // JW uses stream_type field with values "live_event" or "24/7"
-    const streamType = channel_type === 'always_on' ? '24/7' : 'live_event'
+    const streamType = channel_type === 'always_on' ? '24/7' : 'event'
 
     const payload = {
       metadata: {
