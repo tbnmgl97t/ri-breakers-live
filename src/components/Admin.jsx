@@ -5,6 +5,7 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableBody, TableCell, TableHead, TableRow,
   AppBar, Toolbar, Stack, ToggleButton, ToggleButtonGroup, MenuItem,
+  Tabs, Tab,
 } from '@mui/material'
 import { ThemeProvider, CssBaseline } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
@@ -20,6 +21,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import LocationOnIcon from '@mui/icons-material/LocationOn'
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney'
 import theme from '../theme/theme'
 
 const SESSION_KEY = 'ri_admin_token'
@@ -63,7 +65,6 @@ const FIXED_RATE = RATES.storage + RATES.ingestion + RATES.playout  // $19/hr
 function calcChannelCost(ch) {
   if (!ch.stream_start) return null
   const start = new Date(ch.stream_start)
-  // For channels still streaming, use now as end; otherwise use scheduled end
   const end = ch.stream_end ? new Date(ch.stream_end) : new Date()
   const hours = Math.max(0, (end - start) / 3_600_000)
   return {
@@ -97,7 +98,6 @@ function calcDailyCosts(channels) {
     d.total     += cost.total
     d.count++
   })
-  // Return entries sorted latest-date first (reuse the same order channels are sorted by)
   return Object.entries(map)
 }
 
@@ -122,7 +122,6 @@ function CostRecordDialog({ open, initial, onClose, onSave }) {
     try { await onSave(form); onClose() } finally { setSaving(false) }
   }
 
-  // Preview cost
   function parseH(t) {
     const m = t?.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
     if (!m) return 0
@@ -979,6 +978,490 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
   )
 }
 
+// ─── Tournament cost card ─────────────────────────────────────────────────────
+
+function TournamentCostCard({ tournament }) {
+  const [expanded, setExpanded] = useState(true)
+  const dateRange = getTournamentDateRange(tournament)
+  const hasCost = tournament.tournamentTotal > 0
+
+  return (
+    <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden', mb: 2 }}>
+      <Box
+        sx={{
+          px: 2, py: 1.5,
+          display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap',
+          background: 'linear-gradient(90deg, rgba(230,93,44,0.06) 0%, transparent 70%)',
+          borderBottom: expanded ? '1px solid rgba(255,255,255,0.07)' : 'none',
+          cursor: 'pointer',
+          '&:hover': { background: 'linear-gradient(90deg, rgba(230,93,44,0.1) 0%, transparent 70%)' },
+        }}
+        onClick={() => setExpanded(v => !v)}
+      >
+        <IconButton size="small" sx={{ color: '#e65d2c', p: 0, mr: 0.5 }} onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}>
+          {expanded ? <ExpandLessIcon sx={{ fontSize: 20 }} /> : <ExpandMoreIcon sx={{ fontSize: 20 }} />}
+        </IconButton>
+        <EmojiEventsIcon sx={{ color: '#e65d2c', fontSize: 18, flexShrink: 0 }} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem', lineHeight: 1.2 }}>{tournament.name}</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.25 }}>
+            {tournament.location && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                <LocationOnIcon sx={{ fontSize: 12, color: '#a8bcd4' }} />
+                <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.7rem' }}>{tournament.location}</Typography>
+              </Box>
+            )}
+            {dateRange && (
+              <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.7rem' }}>
+                {tournament.location ? '·' : ''} {dateRange}
+              </Typography>
+            )}
+          </Box>
+        </Box>
+        {/* Tournament total in header */}
+        <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+          <Typography sx={{
+            color: hasCost ? '#e65d2c' : 'rgba(168,188,212,0.35)',
+            fontWeight: 700, fontSize: '1.05rem',
+            fontFamily: "'Bayon', sans-serif", letterSpacing: '0.04em', lineHeight: 1,
+          }}>
+            {hasCost ? fmtUSD(tournament.tournamentTotal) : '—'}
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.45)', fontSize: '0.62rem' }}>
+            fixed + CDN
+          </Typography>
+        </Box>
+      </Box>
+
+      <Collapse in={expanded}>
+        {!tournament.days?.length ? (
+          <Box sx={{ px: 3, py: 2.5, textAlign: 'center' }}>
+            <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.5)', fontStyle: 'italic', fontSize: '0.82rem' }}>
+              No days scheduled.
+            </Typography>
+          </Box>
+        ) : (
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)' } }}>
+                <TableCell>DAY</TableCell>
+                <TableCell>DATE</TableCell>
+                <TableCell>FEEDS</TableCell>
+                <TableCell>TOTAL HRS</TableCell>
+                <TableCell>STORAGE</TableCell>
+                <TableCell>INGESTION</TableCell>
+                <TableCell>PLAYOUT</TableCell>
+                <TableCell>FIXED TOTAL</TableCell>
+                <TableCell>SOURCE</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {tournament.days.map(day => (
+                <TableRow key={day.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff' }}>{day.label}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{formatDate(day.date)}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                      {day.channelCount > 0 ? day.channelCount : '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                      {day.dayHours > 0 ? day.dayHours.toFixed(1) : '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                      {day.dayHours > 0 ? fmtUSD(day.dayHours * RATES.storage) : '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                      {day.dayHours > 0 ? fmtUSD(day.dayHours * RATES.ingestion) : '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                      {day.dayHours > 0 ? fmtUSD(day.dayHours * RATES.playout) : '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption" sx={{
+                      color: day.dayTotal > 0 ? '#e65d2c' : 'rgba(168,188,212,0.35)',
+                      fontWeight: day.dayTotal > 0 ? 700 : 400,
+                      fontSize: day.dayTotal > 0 ? '0.78rem' : '0.72rem',
+                    }}>
+                      {day.dayTotal > 0 ? fmtUSD(day.dayTotal) : '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    {day.source === 'live' && (
+                      <Chip label="live" size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(230,93,44,0.15)', color: '#e65d2c' }} />
+                    )}
+                    {day.source === 'historical' && (
+                      <Chip label="archived" size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(168,188,212,0.1)', color: 'rgba(168,188,212,0.6)' }} />
+                    )}
+                    {day.source === 'none' && (
+                      <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>no data</Typography>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {/* Subtotal row */}
+              {tournament.tournamentTotal > 0 && (
+                <TableRow sx={{ '& td': { borderColor: 'rgba(255,255,255,0.07)', borderTop: '1px solid rgba(255,255,255,0.1)', py: 1 } }}>
+                  <TableCell colSpan={7} sx={{ textAlign: 'right' }}>
+                    <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.08em' }}>
+                      TOURNAMENT TOTAL
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.88rem', fontFamily: "'Bayon', sans-serif" }}>
+                      {fmtUSD(tournament.tournamentTotal)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell />
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </Collapse>
+    </Paper>
+  )
+}
+
+// ─── Costs page ───────────────────────────────────────────────────────────────
+
+function CostsPage({ tournaments, channels, costRecords, onOpenCostDialog, onEditRecord, onDeleteRecord }) {
+
+  // ── Build date → live channel cost map (YYYY-MM-DD in ET) ─────────────────
+  const channelCostByDate = {}
+  channels.forEach(ch => {
+    if (!ch.stream_start) return
+    const date = new Date(ch.stream_start).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    if (!channelCostByDate[date]) channelCostByDate[date] = { total: 0, hours: 0, count: 0 }
+    const cost = calcChannelCost(ch)
+    if (cost) {
+      channelCostByDate[date].total += cost.total
+      channelCostByDate[date].hours += cost.hours
+      channelCostByDate[date].count++
+    }
+  })
+
+  // ── Build date → historical record map ────────────────────────────────────
+  const histByDate = {}
+  costRecords.forEach(r => {
+    if (!histByDate[r.date]) histByDate[r.date] = []
+    histByDate[r.date].push(r)
+  })
+
+  // ── Build enriched tournament rollup ──────────────────────────────────────
+  const tournamentRollup = tournaments.map(t => {
+    let tournamentTotal = 0
+    const enrichedDays = (t.days || []).map(day => {
+      const liveCost = channelCostByDate[day.date]
+      const histRecs = histByDate[day.date] || []
+
+      if (liveCost && liveCost.count > 0) {
+        tournamentTotal += liveCost.total
+        return { ...day, dayTotal: liveCost.total, dayHours: liveCost.hours, channelCount: liveCost.count, source: 'live' }
+      } else if (histRecs.length > 0) {
+        let dayTotal = 0, dayHours = 0, channelCount = 0
+        histRecs.forEach(r => {
+          const hrs = r.total_hours ?? (r.hours_per_channel * r.channel_count)
+          dayTotal += hrs * FIXED_RATE
+          dayHours += hrs
+          channelCount += r.channel_count
+        })
+        tournamentTotal += dayTotal
+        return { ...day, dayTotal, dayHours, channelCount, source: 'historical' }
+      }
+      return { ...day, dayTotal: 0, dayHours: 0, channelCount: 0, source: 'none' }
+    })
+    return { ...t, days: enrichedDays, tournamentTotal }
+  })
+
+  const grandTotal = tournamentRollup.reduce((s, t) => s + t.tournamentTotal, 0)
+
+  // ── JW channel cost table ─────────────────────────────────────────────────
+  const sortedChannels = [...channels].sort((a, b) => {
+    if (!a.stream_start && !b.stream_start) return (a.name || '').localeCompare(b.name || '')
+    if (!a.stream_start) return 1
+    if (!b.stream_start) return -1
+    const diff = new Date(b.stream_start) - new Date(a.stream_start)
+    return diff !== 0 ? diff : (a.name || '').localeCompare(b.name || '')
+  })
+
+  // ── Daily summary (live + historical merged) ──────────────────────────────
+  const liveDailyEntries = Object.entries(Object.fromEntries(calcDailyCosts(channels)))
+    .map(([dateLabel, d]) => ({ dateLabel, ...d, historical: false }))
+
+  const historicalEntries = costRecords.map(r => {
+    const dateLabel = new Date(r.date + 'T12:00:00').toLocaleDateString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric',
+    })
+    const hrs = r.total_hours ?? (r.hours_per_channel * r.channel_count)
+    return {
+      dateLabel, date: r.date, label: r.label, id: r.id,
+      count: r.channel_count, hours: hrs,
+      storage: hrs * RATES.storage, ingestion: hrs * RATES.ingestion,
+      playout: hrs * RATES.playout, total: hrs * FIXED_RATE,
+      historical: true,
+    }
+  })
+
+  const allDays = [...liveDailyEntries, ...historicalEntries]
+    .sort((a, b) => (b.date || b.dateLabel).localeCompare(a.date || a.dateLabel))
+  const summaryTotal = allDays.reduce((s, d) => s + d.total, 0)
+
+  const STATUS_LABELS = { requested: 'Scheduled', scheduled: 'Scheduled', creating: 'Creating', active: 'Live', idle: 'Idle', stopping: 'Stopping', destroying: 'Destroying' }
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+
+      {/* ── Tournament Cost Rollup ─────────────────────────────── */}
+      <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{
+          px: 2, py: 1.5,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderBottom: '1px solid rgba(255,255,255,0.07)',
+          background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <AttachMoneyIcon sx={{ color: '#e65d2c', fontSize: 18 }} />
+            <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
+              TOURNAMENT COSTS
+            </Typography>
+          </Box>
+          {grandTotal > 0 && (
+            <Box sx={{ textAlign: 'right' }}>
+              <Typography sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '1.1rem', fontFamily: "'Bayon', sans-serif", letterSpacing: '0.04em', lineHeight: 1 }}>
+                {fmtUSD(grandTotal)}
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.62rem' }}>
+                all tournaments · fixed + CDN
+              </Typography>
+            </Box>
+          )}
+        </Box>
+        <Box sx={{ p: 2 }}>
+          {tournamentRollup.length === 0 ? (
+            <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.5)', textAlign: 'center', py: 2 }}>
+              No tournaments found.
+            </Typography>
+          ) : (
+            tournamentRollup.map(t => (
+              <TournamentCostCard key={t.id} tournament={t} />
+            ))
+          )}
+        </Box>
+      </Paper>
+
+      {/* ── JW Channel Costs ───────────────────────────────────── */}
+      <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{
+          px: 2, py: 1.5,
+          borderBottom: '1px solid rgba(255,255,255,0.07)',
+          background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <LiveTvIcon sx={{ color: '#e65d2c', fontSize: 18 }} />
+            <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
+              JW CHANNEL COSTS
+            </Typography>
+          </Box>
+        </Box>
+        {sortedChannels.filter(ch => ch.stream_start).length === 0 ? (
+          <Typography variant="body2" sx={{ color: '#a8bcd4', textAlign: 'center', py: 3 }}>
+            No channels with cost data yet.
+          </Typography>
+        ) : (
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)' } }}>
+                <TableCell>CHANNEL</TableCell>
+                <TableCell>STATUS</TableCell>
+                <TableCell>DATE</TableCell>
+                <TableCell>HOURS</TableCell>
+                <TableCell>STORAGE</TableCell>
+                <TableCell>INGESTION</TableCell>
+                <TableCell>PLAYOUT</TableCell>
+                <TableCell>FIXED TOTAL</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {sortedChannels.map(ch => {
+                const cost = calcChannelCost(ch)
+                if (!cost) return null
+                const isLive = ch.status === 'active'
+                return (
+                  <TableRow key={ch.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>{ch.name}</Typography>
+                      <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontFamily: 'monospace', fontSize: '0.62rem' }}>{ch.id}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={STATUS_LABELS[ch.status?.toLowerCase()] || ch.status || 'Idle'}
+                        size="small"
+                        sx={{
+                          height: 18, fontSize: '0.6rem', fontWeight: 700,
+                          bgcolor: isLive ? 'rgba(230,93,44,0.2)' : 'rgba(255,255,255,0.06)',
+                          color: isLive ? '#e65d2c' : '#a8bcd4',
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>
+                        {new Date(ch.stream_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                        {cost.hours.toFixed(2)}{isLive ? ' ▸' : ''}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{fmtUSD(cost.storage)}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{fmtUSD(cost.ingestion)}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{fmtUSD(cost.playout)}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption" sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.75rem' }}>
+                        {fmtUSD(cost.total)}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </Paper>
+
+      {/* ── Daily Cost Summary / Historical Records ────────────── */}
+      <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{
+          px: 2, py: 1.5,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderBottom: '1px solid rgba(255,255,255,0.07)',
+          background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
+        }}>
+          <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
+            DAILY COST SUMMARY
+          </Typography>
+          <Button
+            size="small"
+            startIcon={<AddIcon sx={{ fontSize: '13px !important' }} />}
+            onClick={onOpenCostDialog}
+            sx={{ fontSize: '0.65rem', color: '#a8bcd4', py: 0.25, px: 1, '&:hover': { color: '#fff' } }}
+          >
+            Add Historical Entry
+          </Button>
+        </Box>
+
+        {allDays.length === 0 ? (
+          <Typography variant="body2" sx={{ color: '#a8bcd4', textAlign: 'center', py: 3 }}>
+            No cost data yet.
+          </Typography>
+        ) : (
+          <Box sx={{ px: 2, py: 2 }}>
+            <Stack spacing={1}>
+              {allDays.map(d => (
+                <Box
+                  key={d.historical ? `hist-${d.id}` : `live-${d.dateLabel}`}
+                  sx={{
+                    display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: { xs: 1.5, md: 3 },
+                    px: 1.5, py: 1.25, borderRadius: 1.5,
+                    bgcolor: d.historical ? 'rgba(168,188,212,0.03)' : 'rgba(255,255,255,0.025)',
+                    border: `1px solid ${d.historical ? 'rgba(168,188,212,0.1)' : 'rgba(255,255,255,0.06)'}`,
+                  }}
+                >
+                  <Box sx={{ minWidth: 140 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: d.historical ? '#a8bcd4' : '#fff', fontSize: '0.82rem' }}>
+                        {d.dateLabel}
+                      </Typography>
+                      {d.historical && (
+                        <Chip label="archived" size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(168,188,212,0.1)', color: 'rgba(168,188,212,0.6)' }} />
+                      )}
+                    </Box>
+                    <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.65rem' }}>
+                      {d.count} channel{d.count !== 1 ? 's' : ''} · {d.hours.toFixed(1)} hrs total
+                      {d.historical && d.label ? ` · ${d.label}` : ''}
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap', flex: 1 }}>
+                    {[
+                      { label: 'Storage',   rate: '$5/hr',  val: d.storage },
+                      { label: 'Ingestion', rate: '$8/hr',  val: d.ingestion },
+                      { label: 'Playout',   rate: '$6/hr',  val: d.playout },
+                    ].map(item => (
+                      <Box key={item.label}>
+                        <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>
+                          {item.label} <Box component="span" sx={{ color: 'rgba(168,188,212,0.4)' }}>({item.rate})</Box>
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 600, fontSize: '0.75rem' }}>
+                          {fmtUSD(item.val)}
+                        </Typography>
+                      </Box>
+                    ))}
+                    <Box sx={{ borderLeft: '1px solid rgba(255,255,255,0.08)', pl: 2.5 }}>
+                      <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>Fixed total</Typography>
+                      <Typography variant="caption" sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.75rem' }}>{fmtUSD(d.total)}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>CDN</Typography>
+                      <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.75rem' }}>variable</Typography>
+                    </Box>
+                  </Box>
+
+                  {d.historical && (
+                    <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
+                      <Tooltip title="Edit">
+                        <IconButton size="small" onClick={() => onEditRecord(d.id)} sx={{ color: 'rgba(168,188,212,0.5)', '&:hover': { color: '#fff' } }}>
+                          <EditIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Remove">
+                        <IconButton size="small" onClick={() => onDeleteRecord(d.id, d.dateLabel)} sx={{ color: 'rgba(168,188,212,0.5)', '&:hover': { color: '#f44336' } }}>
+                          <DeleteIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  )}
+                </Box>
+              ))}
+
+              {allDays.length > 1 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5, pt: 0.5 }}>
+                  <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em' }}>
+                    TOTAL FIXED
+                  </Typography>
+                  <Typography sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '1rem', fontFamily: "'Bayon', sans-serif", letterSpacing: '0.04em' }}>
+                    {fmtUSD(summaryTotal)}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.65rem' }}>+ CDN</Typography>
+                </Box>
+              )}
+            </Stack>
+          </Box>
+        )}
+      </Paper>
+    </Box>
+  )
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 function Dashboard({ token, onLogout }) {
@@ -996,6 +1479,7 @@ function Dashboard({ token, onLogout }) {
   const [dayDialog, setDayDialog] = useState({ open: false, initial: null, tournament: null })
   const [pickerDialog, setPickerDialog] = useState({ open: false, slot: null, day: null, tournamentId: null })
   const [createStreamOpen, setCreateStreamOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState('dashboard')
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' })
 
   const showSnack = (message, severity = 'success') =>
@@ -1224,416 +1708,276 @@ function Dashboard({ token, onLogout }) {
         </Toolbar>
       </AppBar>
 
+      {/* Tab navigation */}
+      <Box sx={{ bgcolor: '#060e24', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, v) => setActiveTab(v)}
+          sx={{
+            minHeight: 42,
+            maxWidth: 1200,
+            mx: 'auto',
+            px: { xs: 2, md: 3 },
+            '& .MuiTab-root': {
+              minHeight: 42,
+              color: '#a8bcd4',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              textTransform: 'none',
+              py: 0,
+              px: 2,
+              gap: 0.75,
+            },
+            '& .Mui-selected': { color: '#fff !important' },
+            '& .MuiTabs-indicator': { bgcolor: '#e65d2c', height: 2 },
+          }}
+        >
+          <Tab label="Dashboard" value="dashboard" />
+          <Tab
+            label="Costs"
+            value="costs"
+            icon={<AttachMoneyIcon sx={{ fontSize: 15 }} />}
+            iconPosition="start"
+          />
+        </Tabs>
+      </Box>
+
       <Box sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 2, md: 3 }, py: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
 
         {error && <Alert severity="error">{error}</Alert>}
 
-        {/* ── Tournaments ──────────────────────────── */}
-        <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
-          {/* Section header */}
-          <Box sx={{
-            px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            borderBottom: '1px solid rgba(255,255,255,0.07)',
-            background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
-          }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <EmojiEventsIcon sx={{ color: '#e65d2c', fontSize: 18 }} />
-              <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
-                TOURNAMENTS
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Tooltip title="Refresh">
-                <IconButton size="small" onClick={fetchTournaments} sx={{ color: '#a8bcd4' }}>
-                  <RefreshIcon sx={{ fontSize: 18 }} />
-                </IconButton>
-              </Tooltip>
-              <Button
-                size="small"
-                startIcon={<AddIcon />}
-                variant="outlined"
-                onClick={() => setTournamentDialog({ open: true, initial: null })}
-                sx={{ fontSize: '0.72rem', borderColor: 'rgba(230,93,44,0.4)', color: '#e65d2c', '&:hover': { borderColor: '#e65d2c' } }}
-              >
-                Add Tournament
-              </Button>
-            </Box>
-          </Box>
-
-          <Box sx={{ p: loadingTournaments ? 0 : 2 }}>
-            {loadingTournaments ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                <CircularProgress size={28} sx={{ color: '#e65d2c' }} />
-              </Box>
-            ) : tournaments.length === 0 ? (
-              <Box sx={{ textAlign: 'center', py: 4 }}>
-                <EmojiEventsIcon sx={{ color: 'rgba(168,188,212,0.2)', fontSize: 40, mb: 1 }} />
-                <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.5)' }}>
-                  No tournaments yet. Click "Add Tournament" to create one.
-                </Typography>
-              </Box>
-            ) : (
-              tournaments.map(t => (
-                <TournamentCard
-                  key={t.id}
-                  tournament={t}
-                  channels={channels}
-                  token={token}
-                  onRefresh={fetchTournaments}
-                  onAddDay={tournament => setDayDialog({ open: true, initial: null, tournament })}
-                  onEditDay={(day, tournament) => setDayDialog({ open: true, initial: day, tournament })}
-                  onDeleteDay={deleteDay}
-                  onOpenPicker={openPicker}
-                  onEditTournament={tournament => setTournamentDialog({ open: true, initial: tournament })}
-                  onDeleteTournament={deleteTournament}
-                />
-              ))
-            )}
-          </Box>
-        </Paper>
-
-        {/* ── JW Live Channels ─────────────────────── */}
-        <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
-          <Box sx={{
-            px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            borderBottom: '1px solid rgba(255,255,255,0.07)',
-            background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
-          }}>
-            <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
-              JW LIVE CHANNELS
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Tooltip title="Refresh channels">
-                <IconButton size="small" onClick={fetchChannels} sx={{ color: '#a8bcd4' }}>
-                  <RefreshIcon sx={{ fontSize: 18 }} />
-                </IconButton>
-              </Tooltip>
-              <Button
-                size="small"
-                startIcon={<LiveTvIcon sx={{ fontSize: '14px !important' }} />}
-                variant="outlined"
-                onClick={() => setCreateStreamOpen(true)}
-                sx={{ fontSize: '0.72rem', borderColor: 'rgba(230,93,44,0.4)', color: '#e65d2c', '&:hover': { borderColor: '#e65d2c' } }}
-              >
-                New Live Stream
-              </Button>
-            </Box>
-          </Box>
-
-          {channelError && (
-            <Alert severity="warning" sx={{ m: 2, fontSize: '0.8rem' }}>{channelError}</Alert>
-          )}
-
-          {loadingChannels ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-              <CircularProgress size={28} sx={{ color: '#e65d2c' }} />
-            </Box>
-          ) : channels.length === 0 && !channelError ? (
-            <Typography variant="body2" sx={{ color: '#a8bcd4', textAlign: 'center', py: 3 }}>
-              No live channels found in your JW account.
-            </Typography>
-          ) : (
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)' } }}>
-                  <TableCell>CHANNEL</TableCell>
-                  <TableCell>STATUS</TableCell>
-                  <TableCell>START</TableCell>
-                  <TableCell>END</TableCell>
-                  <TableCell>STREAM URL</TableCell>
-                  <TableCell>INGEST</TableCell>
-                  <TableCell>COST</TableCell>
-                  <TableCell />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {[...channels].sort((a, b) => {
-                  // Latest start date first; tie-break by name A→Z; no-start go last
-                  if (!a.stream_start && !b.stream_start) return (a.name || '').localeCompare(b.name || '')
-                  if (!a.stream_start) return 1
-                  if (!b.stream_start) return -1
-                  const timeDiff = new Date(b.stream_start) - new Date(a.stream_start)
-                  if (timeDiff !== 0) return timeDiff
-                  return (a.name || '').localeCompare(b.name || '')
-                }).map(ch => {
-                  const isLive = ch.status === 'active'
-                  const STATUS_LABELS = {
-                    requested:  'Scheduled',
-                    scheduled:  'Scheduled',
-                    creating:   'Creating',
-                    active:     'Live',
-                    idle:       'Idle',
-                    stopping:   'Stopping',
-                    destroying: 'Destroying',
-                  }
-                  const statusLabel = STATUS_LABELS[ch.status?.toLowerCase()] || ch.status || 'Idle'
-                  const fmtTime = iso => {
-                    if (!iso) return '—'
-                    return new Date(iso).toLocaleString('en-US', {
-                      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-                      timeZone: 'America/New_York', timeZoneName: 'short',
-                    })
-                  }
-                  return (
-                    <TableRow key={ch.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>{ch.name}</Typography>
-                        <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontFamily: 'monospace', fontSize: '0.62rem' }}>
-                          {ch.id}{ch.stream_type ? ` · ${ch.stream_type}` : ''}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={statusLabel}
-                          size="small"
-                          sx={{
-                            height: 18, fontSize: '0.6rem', fontWeight: 700,
-                            bgcolor: isLive ? 'rgba(230,93,44,0.2)' : ch.status === 'requested' ? 'rgba(33,150,243,0.15)' : 'rgba(255,255,255,0.06)',
-                            color: isLive ? '#e65d2c' : ch.status === 'requested' ? '#64b5f6' : '#a8bcd4',
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{fmtTime(ch.stream_start)}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{fmtTime(ch.stream_end)}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        {ch.stream_url
-                          ? <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.65rem', wordBreak: 'break-all' }}>{ch.stream_url}</Typography>
-                          : <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>—</Typography>
-                        }
-                      </TableCell>
-                      <TableCell>
-                        {ch.ingest_url ? (
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.6rem', width: 28 }}>URL</Typography>
-                              <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.6rem', wordBreak: 'break-all' }}>{ch.ingest_url}</Typography>
-                              <Tooltip title="Copy ingest URL">
-                                <IconButton size="small" onClick={() => navigator.clipboard.writeText(ch.ingest_url)} sx={{ color: '#a8bcd4', flexShrink: 0, p: 0.25 }}>
-                                  <ContentCopyIcon sx={{ fontSize: 11 }} />
-                                </IconButton>
-                              </Tooltip>
-                            </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.6rem', width: 28 }}>KEY</Typography>
-                              <Typography variant="caption" sx={{ color: '#e65d2c', fontFamily: 'monospace', fontSize: '0.6rem' }}>{ch.ingest_key}</Typography>
-                              <Tooltip title="Copy stream key">
-                                <IconButton size="small" onClick={() => navigator.clipboard.writeText(ch.ingest_key)} sx={{ color: '#a8bcd4', flexShrink: 0, p: 0.25 }}>
-                                  <ContentCopyIcon sx={{ fontSize: 11 }} />
-                                </IconButton>
-                              </Tooltip>
-                            </Box>
-                          </Box>
-                        ) : (
-                          <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>—</Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {(() => {
-                          const cost = calcChannelCost(ch)
-                          if (!cost) return <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)' }}>—</Typography>
-                          const isLive = ch.status === 'active'
-                          return (
-                            <Tooltip
-                              arrow
-                              title={
-                                <Box sx={{ p: 0.5, minWidth: 170 }}>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mb: 0.25 }}>
-                                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>Duration</Typography>
-                                    <Typography variant="caption">{cost.hours.toFixed(2)} hrs{isLive ? ' (live)' : ''}</Typography>
-                                  </Box>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>Storage ($5/hr)</Typography>
-                                    <Typography variant="caption">{fmtUSD(cost.storage)}</Typography>
-                                  </Box>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>Ingestion ($8/hr)</Typography>
-                                    <Typography variant="caption">{fmtUSD(cost.ingestion)}</Typography>
-                                  </Box>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>Playout ($6/hr)</Typography>
-                                    <Typography variant="caption">{fmtUSD(cost.playout)}</Typography>
-                                  </Box>
-                                  <Divider sx={{ my: 0.75, borderColor: 'rgba(255,255,255,0.15)' }} />
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                                    <Typography variant="caption" sx={{ fontWeight: 700 }}>Fixed total</Typography>
-                                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#e65d2c' }}>{fmtUSD(cost.total)}</Typography>
-                                  </Box>
-                                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', display: 'block', mt: 0.5 }}>+ CDN (variable)</Typography>
-                                </Box>
-                              }
-                            >
-                              <Box sx={{ cursor: 'default' }}>
-                                <Typography variant="caption" sx={{ color: '#fff', fontWeight: 700, fontSize: '0.75rem', display: 'block' }}>
-                                  {fmtUSD(cost.total)}
-                                </Typography>
-                                <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.62rem' }}>
-                                  {cost.hours.toFixed(1)} hrs{isLive ? ' ▸' : ''}
-                                </Typography>
-                              </Box>
-                            </Tooltip>
-                          )
-                        })()}
-                      </TableCell>
-                      <TableCell align="right">
-                        <Tooltip title="Delete stream">
-                          <IconButton
-                            size="small"
-                            onClick={() => deleteChannel(ch.id, ch.name)}
-                            sx={{ color: '#a8bcd4', '&:hover': { color: '#f44336' } }}
-                          >
-                            <DeleteIcon sx={{ fontSize: 16 }} />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          )}
-
-          {/* ── Daily cost summary ──────────────────────── */}
-          {(() => {
-            // Merge live JW costs + historical records
-            const liveDailyMap = Object.fromEntries(calcDailyCosts(channels))
-
-            // Build historical entries keyed by same date-label format
-            const historicalEntries = costRecords.map(r => {
-              const dateLabel = new Date(r.date + 'T12:00:00').toLocaleDateString('en-US', {
-                weekday: 'short', month: 'short', day: 'numeric',
-              })
-              const hrs = r.total_hours ?? (r.hours_per_channel * r.channel_count)
-              return {
-                dateLabel,
-                date: r.date,
-                label: r.label,
-                id: r.id,
-                count: r.channel_count,
-                hours: hrs,
-                storage:   hrs * RATES.storage,
-                ingestion: hrs * RATES.ingestion,
-                playout:   hrs * RATES.playout,
-                total:     hrs * FIXED_RATE,
-                historical: true,
-              }
-            })
-
-            // Merge: historical entries go in their own rows, not combined with live
-            const allDays = [
-              ...Object.entries(liveDailyMap).map(([dateLabel, d]) => ({ dateLabel, ...d, historical: false })),
-              ...historicalEntries,
-            ].sort((a, b) => (b.date || b.dateLabel).localeCompare(a.date || a.dateLabel))
-
-            if (!allDays.length) return null
-            const grandTotal = allDays.reduce((s, d) => s + d.total, 0)
-
-            return (
-              <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.07)', px: 2, py: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-                  <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', color: '#a8bcd4' }}>
-                    DAILY COST SUMMARY
+        {activeTab === 'dashboard' ? (
+          <>
+            {/* ── Tournaments ──────────────────────── */}
+            <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+              <Box sx={{
+                px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                borderBottom: '1px solid rgba(255,255,255,0.07)',
+                background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <EmojiEventsIcon sx={{ color: '#e65d2c', fontSize: 18 }} />
+                  <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
+                    TOURNAMENTS
                   </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Tooltip title="Refresh">
+                    <IconButton size="small" onClick={fetchTournaments} sx={{ color: '#a8bcd4' }}>
+                      <RefreshIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </Tooltip>
                   <Button
                     size="small"
-                    startIcon={<AddIcon sx={{ fontSize: '13px !important' }} />}
-                    onClick={() => setCostRecordDialog({ open: true, initial: null })}
-                    sx={{ fontSize: '0.65rem', color: '#a8bcd4', py: 0.25, px: 1, '&:hover': { color: '#fff' } }}
+                    startIcon={<AddIcon />}
+                    variant="outlined"
+                    onClick={() => setTournamentDialog({ open: true, initial: null })}
+                    sx={{ fontSize: '0.72rem', borderColor: 'rgba(230,93,44,0.4)', color: '#e65d2c', '&:hover': { borderColor: '#e65d2c' } }}
                   >
-                    Add Historical Entry
+                    Add Tournament
                   </Button>
                 </Box>
-                <Stack spacing={1}>
-                  {allDays.map((d, i) => (
-                    <Box
-                      key={d.historical ? `hist-${d.id}` : `live-${d.dateLabel}`}
-                      sx={{
-                        display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: { xs: 1.5, md: 3 },
-                        px: 1.5, py: 1.25, borderRadius: 1.5,
-                        bgcolor: d.historical ? 'rgba(168,188,212,0.03)' : 'rgba(255,255,255,0.025)',
-                        border: `1px solid ${d.historical ? 'rgba(168,188,212,0.1)' : 'rgba(255,255,255,0.06)'}`,
-                      }}
-                    >
-                      {/* Date + channel count */}
-                      <Box sx={{ minWidth: 140 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: d.historical ? '#a8bcd4' : '#fff', fontSize: '0.82rem' }}>
-                            {d.dateLabel}
-                          </Typography>
-                          {d.historical && (
-                            <Chip label="archived" size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(168,188,212,0.1)', color: 'rgba(168,188,212,0.6)' }} />
-                          )}
-                        </Box>
-                        <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.65rem' }}>
-                          {d.count} channel{d.count !== 1 ? 's' : ''} · {d.hours.toFixed(1)} hrs total
-                          {d.historical && d.label ? ` · ${d.label}` : ''}
-                        </Typography>
-                      </Box>
-
-                      {/* Rate breakdown */}
-                      <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap', flex: 1 }}>
-                        {[
-                          { label: 'Storage',   rate: '$5/hr', val: d.storage },
-                          { label: 'Ingestion', rate: '$8/hr', val: d.ingestion },
-                          { label: 'Playout',   rate: '$6/hr', val: d.playout },
-                        ].map(item => (
-                          <Box key={item.label}>
-                            <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>
-                              {item.label} <Box component="span" sx={{ color: 'rgba(168,188,212,0.4)' }}>({item.rate})</Box>
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: d.historical ? '#a8bcd4' : '#a8bcd4', fontWeight: 600, fontSize: '0.75rem' }}>
-                              {fmtUSD(item.val)}
-                            </Typography>
-                          </Box>
-                        ))}
-                        <Box sx={{ borderLeft: '1px solid rgba(255,255,255,0.08)', pl: 2.5 }}>
-                          <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>Fixed total</Typography>
-                          <Typography variant="caption" sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.75rem' }}>{fmtUSD(d.total)}</Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>CDN</Typography>
-                          <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.75rem' }}>variable</Typography>
-                        </Box>
-                      </Box>
-
-                      {/* Edit / delete for historical entries */}
-                      {d.historical && (
-                        <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
-                          <Tooltip title="Edit">
-                            <IconButton size="small" onClick={() => setCostRecordDialog({ open: true, initial: costRecords.find(r => r.id === d.id) })} sx={{ color: 'rgba(168,188,212,0.5)', '&:hover': { color: '#fff' } }}>
-                              <EditIcon sx={{ fontSize: 14 }} />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Remove">
-                            <IconButton size="small" onClick={() => deleteCostRecord(d.id, d.dateLabel)} sx={{ color: 'rgba(168,188,212,0.5)', '&:hover': { color: '#f44336' } }}>
-                              <DeleteIcon sx={{ fontSize: 14 }} />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
-                      )}
-                    </Box>
-                  ))}
-
-                  {/* Grand total */}
-                  {allDays.length > 1 && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5, pt: 0.5 }}>
-                      <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em' }}>
-                        TOTAL FIXED
-                      </Typography>
-                      <Typography sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '1rem', fontFamily: "'Bayon', sans-serif", letterSpacing: '0.04em' }}>
-                        {fmtUSD(grandTotal)}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.65rem' }}>+ CDN</Typography>
-                    </Box>
-                  )}
-                </Stack>
               </Box>
-            )
-          })()}
-        </Paper>
+
+              <Box sx={{ p: loadingTournaments ? 0 : 2 }}>
+                {loadingTournaments ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                    <CircularProgress size={28} sx={{ color: '#e65d2c' }} />
+                  </Box>
+                ) : tournaments.length === 0 ? (
+                  <Box sx={{ textAlign: 'center', py: 4 }}>
+                    <EmojiEventsIcon sx={{ color: 'rgba(168,188,212,0.2)', fontSize: 40, mb: 1 }} />
+                    <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.5)' }}>
+                      No tournaments yet. Click "Add Tournament" to create one.
+                    </Typography>
+                  </Box>
+                ) : (
+                  tournaments.map(t => (
+                    <TournamentCard
+                      key={t.id}
+                      tournament={t}
+                      channels={channels}
+                      token={token}
+                      onRefresh={fetchTournaments}
+                      onAddDay={tournament => setDayDialog({ open: true, initial: null, tournament })}
+                      onEditDay={(day, tournament) => setDayDialog({ open: true, initial: day, tournament })}
+                      onDeleteDay={deleteDay}
+                      onOpenPicker={openPicker}
+                      onEditTournament={tournament => setTournamentDialog({ open: true, initial: tournament })}
+                      onDeleteTournament={deleteTournament}
+                    />
+                  ))
+                )}
+              </Box>
+            </Paper>
+
+            {/* ── JW Live Channels ─────────────────────── */}
+            <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+              <Box sx={{
+                px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                borderBottom: '1px solid rgba(255,255,255,0.07)',
+                background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
+              }}>
+                <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
+                  JW LIVE CHANNELS
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Tooltip title="Refresh channels">
+                    <IconButton size="small" onClick={fetchChannels} sx={{ color: '#a8bcd4' }}>
+                      <RefreshIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </Tooltip>
+                  <Button
+                    size="small"
+                    startIcon={<LiveTvIcon sx={{ fontSize: '14px !important' }} />}
+                    variant="outlined"
+                    onClick={() => setCreateStreamOpen(true)}
+                    sx={{ fontSize: '0.72rem', borderColor: 'rgba(230,93,44,0.4)', color: '#e65d2c', '&:hover': { borderColor: '#e65d2c' } }}
+                  >
+                    New Live Stream
+                  </Button>
+                </Box>
+              </Box>
+
+              {channelError && (
+                <Alert severity="warning" sx={{ m: 2, fontSize: '0.8rem' }}>{channelError}</Alert>
+              )}
+
+              {loadingChannels ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                  <CircularProgress size={28} sx={{ color: '#e65d2c' }} />
+                </Box>
+              ) : channels.length === 0 && !channelError ? (
+                <Typography variant="body2" sx={{ color: '#a8bcd4', textAlign: 'center', py: 3 }}>
+                  No live channels found in your JW account.
+                </Typography>
+              ) : (
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)' } }}>
+                      <TableCell>CHANNEL</TableCell>
+                      <TableCell>STATUS</TableCell>
+                      <TableCell>START</TableCell>
+                      <TableCell>END</TableCell>
+                      <TableCell>STREAM URL</TableCell>
+                      <TableCell>INGEST</TableCell>
+                      <TableCell />
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {[...channels].sort((a, b) => {
+                      if (!a.stream_start && !b.stream_start) return (a.name || '').localeCompare(b.name || '')
+                      if (!a.stream_start) return 1
+                      if (!b.stream_start) return -1
+                      const timeDiff = new Date(b.stream_start) - new Date(a.stream_start)
+                      if (timeDiff !== 0) return timeDiff
+                      return (a.name || '').localeCompare(b.name || '')
+                    }).map(ch => {
+                      const isLive = ch.status === 'active'
+                      const STATUS_LABELS = {
+                        requested:  'Scheduled',
+                        scheduled:  'Scheduled',
+                        creating:   'Creating',
+                        active:     'Live',
+                        idle:       'Idle',
+                        stopping:   'Stopping',
+                        destroying: 'Destroying',
+                      }
+                      const statusLabel = STATUS_LABELS[ch.status?.toLowerCase()] || ch.status || 'Idle'
+                      const fmtTime = iso => {
+                        if (!iso) return '—'
+                        return new Date(iso).toLocaleString('en-US', {
+                          month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                          timeZone: 'America/New_York', timeZoneName: 'short',
+                        })
+                      }
+                      return (
+                        <TableRow key={ch.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>{ch.name}</Typography>
+                            <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontFamily: 'monospace', fontSize: '0.62rem' }}>
+                              {ch.id}{ch.stream_type ? ` · ${ch.stream_type}` : ''}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={statusLabel}
+                              size="small"
+                              sx={{
+                                height: 18, fontSize: '0.6rem', fontWeight: 700,
+                                bgcolor: isLive ? 'rgba(230,93,44,0.2)' : ch.status === 'requested' ? 'rgba(33,150,243,0.15)' : 'rgba(255,255,255,0.06)',
+                                color: isLive ? '#e65d2c' : ch.status === 'requested' ? '#64b5f6' : '#a8bcd4',
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{fmtTime(ch.stream_start)}</Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{fmtTime(ch.stream_end)}</Typography>
+                          </TableCell>
+                          <TableCell>
+                            {ch.stream_url
+                              ? <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.65rem', wordBreak: 'break-all' }}>{ch.stream_url}</Typography>
+                              : <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>—</Typography>
+                            }
+                          </TableCell>
+                          <TableCell>
+                            {ch.ingest_url ? (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.6rem', width: 28 }}>URL</Typography>
+                                  <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.6rem', wordBreak: 'break-all' }}>{ch.ingest_url}</Typography>
+                                  <Tooltip title="Copy ingest URL">
+                                    <IconButton size="small" onClick={() => navigator.clipboard.writeText(ch.ingest_url)} sx={{ color: '#a8bcd4', flexShrink: 0, p: 0.25 }}>
+                                      <ContentCopyIcon sx={{ fontSize: 11 }} />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.6rem', width: 28 }}>KEY</Typography>
+                                  <Typography variant="caption" sx={{ color: '#e65d2c', fontFamily: 'monospace', fontSize: '0.6rem' }}>{ch.ingest_key}</Typography>
+                                  <Tooltip title="Copy stream key">
+                                    <IconButton size="small" onClick={() => navigator.clipboard.writeText(ch.ingest_key)} sx={{ color: '#a8bcd4', flexShrink: 0, p: 0.25 }}>
+                                      <ContentCopyIcon sx={{ fontSize: 11 }} />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Box>
+                              </Box>
+                            ) : (
+                              <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>—</Typography>
+                            )}
+                          </TableCell>
+                          <TableCell align="right">
+                            <Tooltip title="Delete stream">
+                              <IconButton
+                                size="small"
+                                onClick={() => deleteChannel(ch.id, ch.name)}
+                                sx={{ color: '#a8bcd4', '&:hover': { color: '#f44336' } }}
+                              >
+                                <DeleteIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </Paper>
+          </>
+        ) : (
+          <CostsPage
+            tournaments={tournaments}
+            channels={channels}
+            costRecords={costRecords}
+            onOpenCostDialog={() => setCostRecordDialog({ open: true, initial: null })}
+            onEditRecord={id => setCostRecordDialog({ open: true, initial: costRecords.find(r => r.id === id) })}
+            onDeleteRecord={deleteCostRecord}
+          />
+        )}
 
       </Box>
 
