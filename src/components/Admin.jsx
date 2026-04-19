@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Box, Paper, Typography, TextField, Button, CircularProgress,
   Alert, IconButton, Chip, Divider, Tooltip, Snackbar, Collapse,
   Dialog, DialogTitle, DialogContent, DialogActions,
   Table, TableBody, TableCell, TableHead, TableRow,
   AppBar, Toolbar, Stack, ToggleButton, ToggleButtonGroup, MenuItem,
-  Tabs, Tab,
+  Tabs, Tab, Switch,
 } from '@mui/material'
-import { ThemeProvider, CssBaseline } from '@mui/material'
+import { ThemeProvider, CssBaseline, createTheme } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
@@ -22,9 +22,73 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import LocationOnIcon from '@mui/icons-material/LocationOn'
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney'
-import theme from '../theme/theme'
+import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import SettingsIcon from '@mui/icons-material/Settings'
+import PaletteIcon from '@mui/icons-material/Palette'
+import CloseIcon from '@mui/icons-material/Close'
 
 const SESSION_KEY = 'ri_admin_token'
+
+// ─── Admin SaaS palette ───────────────────────────────────────────────────────
+
+const AP = {
+  accent:    '#6366f1',
+  accentHov: '#4f46e5',
+  accentDim: 'rgba(99,102,241,0.08)',
+  accentMid: 'rgba(99,102,241,0.15)',
+  accentBdr: 'rgba(99,102,241,0.3)',
+  accentBdr2:'rgba(99,102,241,0.5)',
+  live:      '#10b981',
+  liveDim:   'rgba(16,185,129,0.15)',
+  liveBdr:   'rgba(16,185,129,0.4)',
+  warn:      '#f59e0b',
+  warnDim:   'rgba(245,158,11,0.12)',
+  slate:     '#64748b',
+  slateDim:  'rgba(100,116,139,0.15)',
+  bg:        '#0f1117',
+  paper:     '#161b2e',
+  muted:     '#94a3b8',
+  text:      '#e2e8f0',
+}
+
+const adminTheme = createTheme({
+  palette: {
+    mode: 'dark',
+    primary:    { main: AP.accent, contrastText: '#fff' },
+    background: { default: AP.bg, paper: AP.paper },
+    text:       { primary: AP.text, secondary: AP.muted },
+    divider:    'rgba(255,255,255,0.08)',
+  },
+  typography: { fontFamily: "'Poppins', sans-serif" },
+  shape: { borderRadius: 8 },
+  components: {
+    MuiButton:  { styleOverrides: { root: { textTransform: 'none', fontWeight: 600 } } },
+    MuiPaper:   { styleOverrides: { root: { backgroundImage: 'none', border: '1px solid rgba(255,255,255,0.07)' } } },
+    MuiTab:     { styleOverrides: { root: { textTransform: 'none', fontWeight: 600 } } },
+  },
+})
+
+// ─── JW Player lib ────────────────────────────────────────────────────────────
+
+const JW_PLAYER_LIB = 'https://cdn.jwplayer.com/libraries/xJKVL03e.js'
+const PREVIEW_DIV_ID = 'jw-admin-preview'
+
+function loadJWScript() {
+  return new Promise((resolve, reject) => {
+    if (window.jwplayer) { resolve(window.jwplayer); return }
+    const existing = document.querySelector(`script[src="${JW_PLAYER_LIB}"]`)
+    if (existing) {
+      existing.addEventListener('load', () => resolve(window.jwplayer))
+      existing.addEventListener('error', reject)
+      return
+    }
+    const s = document.createElement('script')
+    s.src = JW_PLAYER_LIB; s.async = true
+    s.onload = () => resolve(window.jwplayer)
+    s.onerror = reject
+    document.head.appendChild(s)
+  })
+}
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -55,6 +119,22 @@ function getTournamentDateRange(tournament) {
   const end   = fmt(dates[dates.length - 1])
   const year  = new Date(dates[0] + 'T12:00:00').getFullYear()
   return start === end ? `${start}, ${year}` : `${start} – ${end}, ${year}`
+}
+
+// ─── Spin-up status (admin preview window = ±30 min) ─────────────────────────
+
+const SPINUP_MINS = 30
+
+function getSpinupStatus(ch) {
+  if (!ch.stream_start) return null
+  const now   = Date.now()
+  const start = new Date(ch.stream_start).getTime()
+  const end   = ch.stream_end ? new Date(ch.stream_end).getTime() : null
+  const minsToStart   = (start - now) / 60_000
+  const minsAfterEnd  = end ? (now - end) / 60_000 : null
+  if (minsToStart > 0 && minsToStart <= SPINUP_MINS)                       return 'starting_soon'
+  if (minsAfterEnd !== null && minsAfterEnd >= 0 && minsAfterEnd <= SPINUP_MINS) return 'winding_down'
+  return null
 }
 
 // ─── Cost helpers ─────────────────────────────────────────────────────────────
@@ -152,16 +232,16 @@ function CostRecordDialog({ open, initial, onClose, onSave }) {
           <TextField label="End"   size="small" fullWidth value={form.end_time}   onChange={set('end_time')}   placeholder="5:00 PM" />
         </Box>
         {preview && (
-          <Box sx={{ bgcolor: 'rgba(230,93,44,0.07)', border: '1px solid rgba(230,93,44,0.2)', borderRadius: 1.5, px: 2, py: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{hrs.toFixed(1)} channel-hrs × ${FIXED_RATE}/hr</Typography>
-            <Typography sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.9rem' }}>{preview}</Typography>
+          <Box sx={{ bgcolor: AP.accentDim, border: `1px solid ${AP.accentBdr}`, borderRadius: 1.5, px: 2, py: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="caption" sx={{ color: AP.muted }}>{hrs.toFixed(1)} channel-hrs × ${FIXED_RATE}/hr</Typography>
+            <Typography sx={{ color: AP.accent, fontWeight: 700, fontSize: '0.9rem' }}>{preview}</Typography>
           </Box>
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} sx={{ color: '#a8bcd4' }}>Cancel</Button>
         <Button onClick={handleSave} disabled={!isValid || saving} variant="contained"
-          sx={{ bgcolor: '#e65d2c', '&:hover': { bgcolor: '#c94e24' } }}>
+          sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov } }}>
           {saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Save'}
         </Button>
       </DialogActions>
@@ -210,7 +290,7 @@ function LoginScreen({ onLogin }) {
             component="img"
             src="https://ribreakersac.com/cdn/shop/files/RI-Breakers-Logo-WHITE.png?v=1774997726&width=200"
             alt="RI Breakers"
-            sx={{ width: 64, height: 64, objectFit: 'contain', filter: 'drop-shadow(0 0 10px rgba(230,93,44,0.4))' }}
+            sx={{ width: 64, height: 64, objectFit: 'contain', filter: `drop-shadow(0 0 10px ${AP.accentBdr})` }}
           />
           <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.08em', fontSize: '1.1rem', mt: 0.5 }}>
             ADMIN DASHBOARD
@@ -235,7 +315,7 @@ function LoginScreen({ onLogin }) {
           fullWidth
           variant="contained"
           disabled={loading || !password}
-          sx={{ bgcolor: '#e65d2c', '&:hover': { bgcolor: '#c94e24' }, fontWeight: 700 }}
+          sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov }, fontWeight: 700 }}
         >
           {loading ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Sign In'}
         </Button>
@@ -275,7 +355,7 @@ function TournamentDialog({ open, initial, onClose, onSave }) {
       PaperProps={{ sx: { bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 } }}
     >
       <DialogTitle sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <EmojiEventsIcon sx={{ color: '#e65d2c', fontSize: 20 }} />
+        <EmojiEventsIcon sx={{ color: AP.accent, fontSize: 20 }} />
         {initial?.id ? 'Edit Tournament' : 'New Tournament'}
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important' }}>
@@ -290,7 +370,7 @@ function TournamentDialog({ open, initial, onClose, onSave }) {
           onClick={handleSave}
           disabled={!form.name || saving}
           variant="contained"
-          sx={{ bgcolor: '#e65d2c', '&:hover': { bgcolor: '#c94e24' } }}
+          sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov } }}
         >
           {saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Save'}
         </Button>
@@ -356,7 +436,7 @@ function DayDialog({ open, initial, tournamentName, onClose, onSave }) {
           onClick={handleSave}
           disabled={!isValid || saving}
           variant="contained"
-          sx={{ bgcolor: '#e65d2c', '&:hover': { bgcolor: '#c94e24' } }}
+          sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov } }}
         >
           {saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Save'}
         </Button>
@@ -379,11 +459,11 @@ function ChannelPickerDialog({ open, slot, day, channels, onClose, onPick }) {
       </DialogTitle>
       <DialogContent sx={{ pt: 1.5 }}>
         {currentUrl && (
-          <Box sx={{ mb: 1.5, px: 1.5, py: 1, bgcolor: 'rgba(230,93,44,0.08)', border: '1px solid rgba(230,93,44,0.25)', borderRadius: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <CheckCircleIcon sx={{ fontSize: 14, color: '#e65d2c', flexShrink: 0 }} />
+          <Box sx={{ mb: 1.5, px: 1.5, py: 1, bgcolor: AP.accentDim, border: `1px solid ${AP.accentBdr}`, borderRadius: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CheckCircleIcon sx={{ fontSize: 14, color: AP.accent, flexShrink: 0 }} />
             <Box>
-              <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.62rem', display: 'block' }}>CURRENTLY ASSIGNED</Typography>
-              <Typography variant="caption" sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.75rem' }}>
+              <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.62rem', display: 'block' }}>CURRENTLY ASSIGNED</Typography>
+              <Typography variant="caption" sx={{ color: AP.accent, fontWeight: 700, fontSize: '0.75rem' }}>
                 {(slot === 1 ? day?.camera1_name : day?.camera2_name) || currentUrl}
               </Typography>
             </Box>
@@ -418,18 +498,18 @@ function ChannelPickerDialog({ open, slot, day, channels, onClose, onPick }) {
                   elevation={0}
                   sx={{
                     p: 1.5, borderRadius: 1.5,
-                    border: `1px solid ${isActive ? 'rgba(230,93,44,0.6)' : 'rgba(255,255,255,0.07)'}`,
-                    bgcolor: isActive ? 'rgba(230,93,44,0.1)' : 'transparent',
+                    border: `1px solid ${isActive ? AP.accentBdr2 : 'rgba(255,255,255,0.07)'}`,
+                    bgcolor: isActive ? AP.accentDim : 'transparent',
                     cursor: ch.stream_url ? 'pointer' : 'default',
                     opacity: ch.stream_url ? 1 : 0.5,
-                    '&:hover': ch.stream_url ? { borderColor: '#e65d2c', bgcolor: 'rgba(230,93,44,0.07)' } : {},
+                    '&:hover': ch.stream_url ? { borderColor: AP.accent, bgcolor: AP.accentDim } : {},
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                      {isActive && <CheckCircleIcon sx={{ fontSize: 14, color: '#e65d2c', flexShrink: 0 }} />}
+                      {isActive && <CheckCircleIcon sx={{ fontSize: 14, color: AP.accent, flexShrink: 0 }} />}
                       <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: isActive ? '#e65d2c' : '#fff' }}>{ch.name}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: isActive ? AP.accent : '#fff' }}>{ch.name}</Typography>
                         {ch.stream_url
                           ? <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.62rem', wordBreak: 'break-all' }}>{ch.stream_url}</Typography>
                           : <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.65rem' }}>No stream URL available</Typography>
@@ -441,8 +521,8 @@ function ChannelPickerDialog({ open, slot, day, channels, onClose, onPick }) {
                       size="small"
                       sx={{
                         height: 18, fontSize: '0.6rem', fontWeight: 700,
-                        bgcolor: isLive ? 'rgba(230,93,44,0.2)' : 'rgba(255,255,255,0.06)',
-                        color: isLive ? '#e65d2c' : '#a8bcd4',
+                        bgcolor: isLive ? AP.liveDim : 'rgba(255,255,255,0.06)',
+                        color:  isLive ? AP.live   : AP.muted,
                         flexShrink: 0,
                       }}
                     />
@@ -614,7 +694,7 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
       PaperProps={{ sx: { bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 } }}
     >
       <DialogTitle sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <LiveTvIcon sx={{ color: '#e65d2c', fontSize: 20 }} />
+        <LiveTvIcon sx={{ color: AP.accent, fontSize: 20 }} />
         Create Live Stream
       </DialogTitle>
 
@@ -636,7 +716,7 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
                     flex: 1, fontSize: '0.75rem', fontWeight: 700, borderColor: 'rgba(255,255,255,0.12)',
                     color: '#a8bcd4', textTransform: 'none', py: 0.75,
                   },
-                  '& .Mui-selected': { bgcolor: 'rgba(230,93,44,0.15) !important', color: '#e65d2c !important', borderColor: 'rgba(230,93,44,0.4) !important' },
+                  '& .Mui-selected': { bgcolor: `${AP.accentMid} !important`, color: `${AP.accent} !important`, borderColor: `${AP.accentBdr} !important` },
                 }}
               >
                 <ToggleButton value="live_event">Live Event</ToggleButton>
@@ -770,7 +850,7 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
                 <Box>
                   <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 700, letterSpacing: '0.08em', display: 'block', mb: 0.5 }}>STREAM URL</Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(0,0,0,0.3)', borderRadius: 1, px: 1.5, py: 0.75 }}>
-                    <Typography variant="caption" sx={{ color: '#e65d2c', fontFamily: 'monospace', fontSize: '0.65rem', flex: 1, wordBreak: 'break-all' }}>
+                    <Typography variant="caption" sx={{ color: AP.accent, fontFamily: 'monospace', fontSize: '0.65rem', flex: 1, wordBreak: 'break-all' }}>
                       {result.stream_url}
                     </Typography>
                     <Tooltip title={copied ? 'Copied!' : 'Copy URL'}>
@@ -793,7 +873,7 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
             onClick={handleCreate}
             disabled={!isValid || loading}
             variant="contained"
-            sx={{ bgcolor: '#e65d2c', '&:hover': { bgcolor: '#c94e24' } }}
+            sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov } }}
           >
             {loading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Create'}
           </Button>
@@ -820,18 +900,18 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
         sx={{
           px: 2, py: 1.5,
           display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap',
-          background: 'linear-gradient(90deg, rgba(230,93,44,0.06) 0%, transparent 70%)',
+          background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 70%)`,
           borderBottom: expanded ? '1px solid rgba(255,255,255,0.07)' : 'none',
           cursor: 'pointer',
-          '&:hover': { background: 'linear-gradient(90deg, rgba(230,93,44,0.1) 0%, transparent 70%)' },
+          '&:hover': { background: `linear-gradient(90deg, ${AP.accentMid} 0%, transparent 70%)` },
         }}
         onClick={() => setExpanded(v => !v)}
       >
-        <IconButton size="small" sx={{ color: '#e65d2c', p: 0, mr: 0.5 }} onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}>
+        <IconButton size="small" sx={{ color: AP.accent, p: 0, mr: 0.5 }} onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}>
           {expanded ? <ExpandLessIcon sx={{ fontSize: 20 }} /> : <ExpandMoreIcon sx={{ fontSize: 20 }} />}
         </IconButton>
 
-        <EmojiEventsIcon sx={{ color: '#e65d2c', fontSize: 18, flexShrink: 0 }} />
+        <EmojiEventsIcon sx={{ color: AP.accent, fontSize: 18, flexShrink: 0 }} />
 
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography sx={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem', lineHeight: 1.2 }}>
@@ -864,7 +944,7 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
               startIcon={<AddIcon sx={{ fontSize: '14px !important' }} />}
               variant="outlined"
               onClick={() => onAddDay(tournament)}
-              sx={{ fontSize: '0.7rem', py: 0.3, px: 1, borderColor: 'rgba(230,93,44,0.4)', color: '#e65d2c', '&:hover': { borderColor: '#e65d2c' } }}
+              sx={{ fontSize: '0.7rem', py: 0.3, px: 1, borderColor: AP.accentBdr, color: AP.accent, '&:hover': { borderColor: AP.accent } }}
             >
               Add Day
             </Button>
@@ -928,7 +1008,7 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
                             border: '1px solid',
                             borderColor: url ? 'rgba(76,175,80,0.5)' : 'rgba(255,255,255,0.1)',
                             bgcolor: url ? 'rgba(76,175,80,0.07)' : 'transparent',
-                            '&:hover': { borderColor: url ? '#4caf50' : '#e65d2c', bgcolor: url ? 'rgba(76,175,80,0.12)' : 'rgba(230,93,44,0.06)' },
+                            '&:hover': { borderColor: url ? '#4caf50' : AP.accent, bgcolor: url ? 'rgba(76,175,80,0.12)' : AP.accentDim },
                           }}
                         >
                           {url ? (
@@ -991,17 +1071,17 @@ function TournamentCostCard({ tournament }) {
         sx={{
           px: 2, py: 1.5,
           display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap',
-          background: 'linear-gradient(90deg, rgba(230,93,44,0.06) 0%, transparent 70%)',
+          background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 70%)`,
           borderBottom: expanded ? '1px solid rgba(255,255,255,0.07)' : 'none',
           cursor: 'pointer',
-          '&:hover': { background: 'linear-gradient(90deg, rgba(230,93,44,0.1) 0%, transparent 70%)' },
+          '&:hover': { background: `linear-gradient(90deg, ${AP.accentMid} 0%, transparent 70%)` },
         }}
         onClick={() => setExpanded(v => !v)}
       >
-        <IconButton size="small" sx={{ color: '#e65d2c', p: 0, mr: 0.5 }} onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}>
+        <IconButton size="small" sx={{ color: AP.accent, p: 0, mr: 0.5 }} onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}>
           {expanded ? <ExpandLessIcon sx={{ fontSize: 20 }} /> : <ExpandMoreIcon sx={{ fontSize: 20 }} />}
         </IconButton>
-        <EmojiEventsIcon sx={{ color: '#e65d2c', fontSize: 18, flexShrink: 0 }} />
+        <EmojiEventsIcon sx={{ color: AP.accent, fontSize: 18, flexShrink: 0 }} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography sx={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem', lineHeight: 1.2 }}>{tournament.name}</Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.25 }}>
@@ -1021,7 +1101,7 @@ function TournamentCostCard({ tournament }) {
         {/* Tournament total in header */}
         <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
           <Typography sx={{
-            color: hasCost ? '#e65d2c' : 'rgba(168,188,212,0.35)',
+            color: hasCost ? AP.accent : 'rgba(168,188,212,0.35)',
             fontWeight: 700, fontSize: '1.05rem',
             fontFamily: "'Bayon', sans-serif", letterSpacing: '0.04em', lineHeight: 1,
           }}>
@@ -1091,7 +1171,7 @@ function TournamentCostCard({ tournament }) {
                   </TableCell>
                   <TableCell>
                     <Typography variant="caption" sx={{
-                      color: day.dayTotal > 0 ? '#e65d2c' : 'rgba(168,188,212,0.35)',
+                      color: day.dayTotal > 0 ? AP.accent : 'rgba(168,188,212,0.35)',
                       fontWeight: day.dayTotal > 0 ? 700 : 400,
                       fontSize: day.dayTotal > 0 ? '0.78rem' : '0.72rem',
                     }}>
@@ -1100,7 +1180,7 @@ function TournamentCostCard({ tournament }) {
                   </TableCell>
                   <TableCell>
                     {day.source === 'live' && (
-                      <Chip label="live" size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(230,93,44,0.15)', color: '#e65d2c' }} />
+                      <Chip label="live" size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: AP.liveDim, color: AP.live }} />
                     )}
                     {day.source === 'historical' && (
                       <Chip label="archived" size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(168,188,212,0.1)', color: 'rgba(168,188,212,0.6)' }} />
@@ -1120,7 +1200,7 @@ function TournamentCostCard({ tournament }) {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.88rem', fontFamily: "'Bayon', sans-serif" }}>
+                    <Typography sx={{ color: AP.accent, fontWeight: 700, fontSize: '0.88rem', fontFamily: "'Bayon', sans-serif" }}>
                       {fmtUSD(tournament.tournamentTotal)}
                     </Typography>
                   </TableCell>
@@ -1230,17 +1310,17 @@ function CostsPage({ tournaments, channels, costRecords, onOpenCostDialog, onEdi
           px: 2, py: 1.5,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           borderBottom: '1px solid rgba(255,255,255,0.07)',
-          background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
+          background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <AttachMoneyIcon sx={{ color: '#e65d2c', fontSize: 18 }} />
+            <AttachMoneyIcon sx={{ color: AP.accent, fontSize: 18 }} />
             <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
               TOURNAMENT COSTS
             </Typography>
           </Box>
           {grandTotal > 0 && (
             <Box sx={{ textAlign: 'right' }}>
-              <Typography sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '1.1rem', fontFamily: "'Bayon', sans-serif", letterSpacing: '0.04em', lineHeight: 1 }}>
+              <Typography sx={{ color: AP.accent, fontWeight: 700, fontSize: '1.1rem', fontFamily: "'Bayon', sans-serif", letterSpacing: '0.04em', lineHeight: 1 }}>
                 {fmtUSD(grandTotal)}
               </Typography>
               <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.62rem' }}>
@@ -1267,10 +1347,10 @@ function CostsPage({ tournaments, channels, costRecords, onOpenCostDialog, onEdi
         <Box sx={{
           px: 2, py: 1.5,
           borderBottom: '1px solid rgba(255,255,255,0.07)',
-          background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
+          background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <LiveTvIcon sx={{ color: '#e65d2c', fontSize: 18 }} />
+            <LiveTvIcon sx={{ color: AP.accent, fontSize: 18 }} />
             <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
               JW CHANNEL COSTS
             </Typography>
@@ -1311,8 +1391,8 @@ function CostsPage({ tournaments, channels, costRecords, onOpenCostDialog, onEdi
                         size="small"
                         sx={{
                           height: 18, fontSize: '0.6rem', fontWeight: 700,
-                          bgcolor: isLive ? 'rgba(230,93,44,0.2)' : 'rgba(255,255,255,0.06)',
-                          color: isLive ? '#e65d2c' : '#a8bcd4',
+                          bgcolor: isLive ? AP.liveDim : 'rgba(255,255,255,0.06)',
+                          color:  isLive ? AP.live   : AP.muted,
                         }}
                       />
                     </TableCell>
@@ -1336,7 +1416,7 @@ function CostsPage({ tournaments, channels, costRecords, onOpenCostDialog, onEdi
                       <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{fmtUSD(cost.playout)}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="caption" sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.75rem' }}>
+                      <Typography variant="caption" sx={{ color: AP.accent, fontWeight: 700, fontSize: '0.75rem' }}>
                         {fmtUSD(cost.total)}
                       </Typography>
                     </TableCell>
@@ -1354,7 +1434,7 @@ function CostsPage({ tournaments, channels, costRecords, onOpenCostDialog, onEdi
           px: 2, py: 1.5,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           borderBottom: '1px solid rgba(255,255,255,0.07)',
-          background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
+          background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
         }}>
           <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
             DAILY COST SUMMARY
@@ -1418,7 +1498,7 @@ function CostsPage({ tournaments, channels, costRecords, onOpenCostDialog, onEdi
                     ))}
                     <Box sx={{ borderLeft: '1px solid rgba(255,255,255,0.08)', pl: 2.5 }}>
                       <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>Fixed total</Typography>
-                      <Typography variant="caption" sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '0.75rem' }}>{fmtUSD(d.total)}</Typography>
+                      <Typography variant="caption" sx={{ color: AP.accent, fontWeight: 700, fontSize: '0.75rem' }}>{fmtUSD(d.total)}</Typography>
                     </Box>
                     <Box>
                       <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>CDN</Typography>
@@ -1448,7 +1528,7 @@ function CostsPage({ tournaments, channels, costRecords, onOpenCostDialog, onEdi
                   <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em' }}>
                     TOTAL FIXED
                   </Typography>
-                  <Typography sx={{ color: '#e65d2c', fontWeight: 700, fontSize: '1rem', fontFamily: "'Bayon', sans-serif", letterSpacing: '0.04em' }}>
+                  <Typography sx={{ color: AP.accent, fontWeight: 700, fontSize: '1rem', fontFamily: "'Bayon', sans-serif", letterSpacing: '0.04em' }}>
                     {fmtUSD(summaryTotal)}
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.65rem' }}>+ CDN</Typography>
@@ -1458,6 +1538,245 @@ function CostsPage({ tournaments, channels, costRecords, onOpenCostDialog, onEdi
           </Box>
         )}
       </Paper>
+    </Box>
+  )
+}
+
+// ─── Preview player dialog ────────────────────────────────────────────────────
+
+function PreviewPlayerDialog({ open, onClose, channelName, streamUrl }) {
+  const playerRef = useRef(null)
+  const divRef    = useRef(null)
+
+  useEffect(() => {
+    if (!open || !streamUrl) return
+    let cancelled = false
+    loadJWScript()
+      .then(() => {
+        if (cancelled || !divRef.current || !window.jwplayer) return
+        if (playerRef.current) { try { playerRef.current.remove() } catch (_) {} }
+        playerRef.current = window.jwplayer(PREVIEW_DIV_ID).setup({
+          file: streamUrl,
+          width: '100%',
+          aspectratio: '16:9',
+          autostart: true,
+          mute: true,
+        })
+      })
+      .catch(err => console.error('JW preview failed:', err))
+    return () => {
+      cancelled = true
+      if (playerRef.current) {
+        try { playerRef.current.remove() } catch (_) {}
+        playerRef.current = null
+      }
+    }
+  }, [open, streamUrl])
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md"
+      PaperProps={{ sx: { bgcolor: '#000', border: `1px solid ${AP.accentBdr}`, borderRadius: 2 } }}
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1, px: 2, bgcolor: AP.paper, borderBottom: `1px solid rgba(255,255,255,0.07)` }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <LiveTvIcon sx={{ color: AP.accent, fontSize: 16 }} />
+          <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: AP.text }}>
+            {channelName || 'Preview'}
+          </Typography>
+          <Chip label="ADMIN PREVIEW" size="small" sx={{ height: 16, fontSize: '0.57rem', fontWeight: 700, bgcolor: AP.accentMid, color: AP.accent }} />
+        </Box>
+        <IconButton size="small" onClick={onClose} sx={{ color: AP.muted, '&:hover': { color: AP.text } }}>
+          <CloseIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ p: 0 }}>
+        {streamUrl
+          ? <div id={PREVIEW_DIV_ID} ref={divRef} style={{ width: '100%' }} />
+          : <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, bgcolor: '#000' }}>
+              <Typography variant="body2" sx={{ color: AP.muted }}>No stream URL available</Typography>
+            </Box>
+        }
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Tenant settings panel ────────────────────────────────────────────────────
+
+function ColorField({ label, value, onChange }) {
+  const safe = /^#[0-9a-fA-F]{3,6}$/.test(value) ? value : '#000000'
+  return (
+    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+      <TextField
+        size="small" fullWidth label={label}
+        value={value} onChange={e => onChange(e.target.value)}
+        inputProps={{ spellCheck: false }}
+        sx={{ '& input': { fontFamily: 'monospace', fontSize: '0.82rem' } }}
+      />
+      <Box
+        component="input" type="color" value={safe}
+        onChange={e => onChange(e.target.value)}
+        sx={{ width: 38, height: 38, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 1, p: '3px', bgcolor: 'transparent', flexShrink: 0 }}
+      />
+    </Box>
+  )
+}
+
+const COMPONENT_LABELS = {
+  video_player:    'Video Player',
+  camera_selector: 'Camera Selector',
+  event_schedule:  'Event Schedule',
+  command_center:  'Command Center',
+  pre_show_screen: 'Pre-Show Screen',
+}
+
+function TenantSettingsPanel({ token }) {
+  const [form, setForm]       = useState(null)
+  const [saving, setSaving]   = useState(false)
+  const [saveMsg, setSaveMsg] = useState('')
+  const [saveErr, setSaveErr] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/tenant')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) setForm({
+          title:    data.title    || '',
+          subtitle: data.subtitle || '',
+          logo_url: data.logo_url || '',
+          colors: {
+            primary:    data.colors?.primary    || '#e65d2c',
+            secondary:  data.colors?.secondary  || '#0a205a',
+            background: data.colors?.background || '#060e24',
+            paper:      data.colors?.paper      || '#0d1e42',
+          },
+          components: {
+            video_player:    data.components?.video_player    !== false,
+            camera_selector: data.components?.camera_selector !== false,
+            event_schedule:  data.components?.event_schedule  !== false,
+            command_center:  data.components?.command_center  !== false,
+            pre_show_screen: data.components?.pre_show_screen !== false,
+          },
+        })
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  function setField(path, value) {
+    setForm(f => {
+      const [top, sub] = path.split('.')
+      if (!sub) return { ...f, [top]: value }
+      return { ...f, [top]: { ...f[top], [sub]: value } }
+    })
+  }
+
+  async function handleSave() {
+    setSaving(true); setSaveMsg(''); setSaveErr('')
+    try {
+      const res = await fetch('/api/tenant', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Save failed')
+      setSaveMsg('Settings saved — changes will take effect on next page load.')
+      setTimeout(() => setSaveMsg(''), 6000)
+    } catch (err) {
+      setSaveErr(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return (
+    <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+      <CircularProgress size={28} sx={{ color: AP.accent }} />
+    </Box>
+  )
+  if (!form) return <Alert severity="error">Failed to load tenant settings</Alert>
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {saveMsg && <Alert severity="success">{saveMsg}</Alert>}
+      {saveErr && <Alert severity="error">{saveErr}</Alert>}
+
+      {/* Branding */}
+      <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.07)', background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>BRANDING</Typography>
+        </Box>
+        <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <TextField size="small" fullWidth label="Team / Organization Name" value={form.title} onChange={e => setField('title', e.target.value)} />
+          <TextField size="small" fullWidth label="Subtitle" value={form.subtitle} onChange={e => setField('subtitle', e.target.value)} placeholder="e.g. Sport Fishing Championship" />
+          <TextField size="small" fullWidth label="Logo URL" value={form.logo_url} onChange={e => setField('logo_url', e.target.value)} placeholder="https://..." />
+          {form.logo_url && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box component="img" src={form.logo_url} alt="Logo preview"
+                sx={{ width: 56, height: 56, objectFit: 'contain', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1, bgcolor: 'rgba(0,0,0,0.4)', p: 0.5, flexShrink: 0 }} />
+              <Typography variant="caption" sx={{ color: AP.muted }}>Logo preview</Typography>
+            </Box>
+          )}
+        </Box>
+      </Paper>
+
+      {/* Colors */}
+      <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.07)', background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PaletteIcon sx={{ color: AP.accent, fontSize: 18 }} />
+          <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>COLOR PALETTE</Typography>
+        </Box>
+        <Box sx={{ p: 2.5, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+          <ColorField label="Primary"    value={form.colors.primary}    onChange={v => setField('colors.primary', v)} />
+          <ColorField label="Secondary"  value={form.colors.secondary}  onChange={v => setField('colors.secondary', v)} />
+          <ColorField label="Background" value={form.colors.background} onChange={v => setField('colors.background', v)} />
+          <ColorField label="Paper"      value={form.colors.paper}      onChange={v => setField('colors.paper', v)} />
+        </Box>
+        <Box sx={{ px: 2.5, pb: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          {Object.entries(form.colors).map(([key, val]) => (
+            <Box key={key} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <Box sx={{ width: 18, height: 18, borderRadius: '50%', bgcolor: val, border: '1px solid rgba(255,255,255,0.25)', flexShrink: 0 }} />
+              <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.62rem' }}>{key}</Typography>
+            </Box>
+          ))}
+        </Box>
+      </Paper>
+
+      {/* Feature flags */}
+      <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.07)', background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)` }}>
+          <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>FEATURE FLAGS</Typography>
+        </Box>
+        <Box sx={{ px: 2.5, py: 1 }}>
+          {Object.entries(COMPONENT_LABELS).map(([key, label], i, arr) => (
+            <Box key={key} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1, borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+              <Box>
+                <Typography variant="body2" sx={{ color: AP.text, fontWeight: 600 }}>{label}</Typography>
+                <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.62rem', fontFamily: 'monospace' }}>{key}</Typography>
+              </Box>
+              <Switch
+                checked={form.components[key]}
+                onChange={e => setField(`components.${key}`, e.target.checked)}
+                size="small"
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked':                     { color: AP.accent },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track':  { bgcolor: AP.accent },
+                }}
+              />
+            </Box>
+          ))}
+        </Box>
+      </Paper>
+
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Button variant="contained" onClick={handleSave} disabled={saving}
+          sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov }, fontWeight: 700, px: 3 }}
+        >
+          {saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Save Settings'}
+        </Button>
+      </Box>
     </Box>
   )
 }
@@ -1480,6 +1799,7 @@ function Dashboard({ token, onLogout }) {
   const [pickerDialog, setPickerDialog] = useState({ open: false, slot: null, day: null, tournamentId: null })
   const [createStreamOpen, setCreateStreamOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [previewDialog, setPreviewDialog] = useState({ open: false, channelName: '', streamUrl: '' })
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' })
 
   const showSnack = (message, severity = 'success') =>
@@ -1683,15 +2003,10 @@ function Dashboard({ token, onLogout }) {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Top bar */}
       <AppBar position="sticky" elevation={0}
-        sx={{ background: 'linear-gradient(90deg, #060e24 0%, #0a205a 60%, #060e24 100%)', borderBottom: '2px solid #e65d2c' }}
+        sx={{ background: `linear-gradient(90deg, ${AP.bg} 0%, ${AP.paper} 60%, ${AP.bg} 100%)`, borderBottom: `2px solid ${AP.accent}` }}
       >
         <Toolbar sx={{ gap: 1.5, minHeight: { xs: 56, sm: 64 } }}>
-          <Box
-            component="img"
-            src="https://ribreakersac.com/cdn/shop/files/RI-Breakers-Logo-WHITE.png?v=1774997726&width=200"
-            alt="RI Breakers"
-            sx={{ width: 40, height: 40, objectFit: 'contain' }}
-          />
+          <SettingsIcon sx={{ color: AP.accent, fontSize: 22 }} />
           <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.08em', flexGrow: 1, fontSize: '1rem' }}>
             ADMIN DASHBOARD
           </Typography>
@@ -1709,7 +2024,7 @@ function Dashboard({ token, onLogout }) {
       </AppBar>
 
       {/* Tab navigation */}
-      <Box sx={{ bgcolor: '#060e24', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+      <Box sx={{ bgcolor: AP.bg, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
         <Tabs
           value={activeTab}
           onChange={(_, v) => setActiveTab(v)}
@@ -1720,7 +2035,7 @@ function Dashboard({ token, onLogout }) {
             px: { xs: 2, md: 3 },
             '& .MuiTab-root': {
               minHeight: 42,
-              color: '#a8bcd4',
+              color: AP.muted,
               fontSize: '0.72rem',
               fontWeight: 700,
               letterSpacing: '0.08em',
@@ -1729,17 +2044,13 @@ function Dashboard({ token, onLogout }) {
               px: 2,
               gap: 0.75,
             },
-            '& .Mui-selected': { color: '#fff !important' },
-            '& .MuiTabs-indicator': { bgcolor: '#e65d2c', height: 2 },
+            '& .Mui-selected':      { color: '#fff !important' },
+            '& .MuiTabs-indicator': { bgcolor: AP.accent, height: 2 },
           }}
         >
           <Tab label="Dashboard" value="dashboard" />
-          <Tab
-            label="Costs"
-            value="costs"
-            icon={<AttachMoneyIcon sx={{ fontSize: 15 }} />}
-            iconPosition="start"
-          />
+          <Tab label="Costs"    value="costs"    icon={<AttachMoneyIcon sx={{ fontSize: 15 }} />} iconPosition="start" />
+          <Tab label="Settings" value="settings" icon={<SettingsIcon   sx={{ fontSize: 15 }} />} iconPosition="start" />
         </Tabs>
       </Box>
 
@@ -1747,17 +2058,19 @@ function Dashboard({ token, onLogout }) {
 
         {error && <Alert severity="error">{error}</Alert>}
 
-        {activeTab === 'dashboard' ? (
+        {activeTab === 'settings' ? (
+          <TenantSettingsPanel token={token} />
+        ) : activeTab === 'dashboard' ? (
           <>
             {/* ── Tournaments ──────────────────────── */}
             <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
               <Box sx={{
                 px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 borderBottom: '1px solid rgba(255,255,255,0.07)',
-                background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
+                background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
               }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <EmojiEventsIcon sx={{ color: '#e65d2c', fontSize: 18 }} />
+                  <EmojiEventsIcon sx={{ color: AP.accent, fontSize: 18 }} />
                   <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
                     TOURNAMENTS
                   </Typography>
@@ -1773,7 +2086,7 @@ function Dashboard({ token, onLogout }) {
                     startIcon={<AddIcon />}
                     variant="outlined"
                     onClick={() => setTournamentDialog({ open: true, initial: null })}
-                    sx={{ fontSize: '0.72rem', borderColor: 'rgba(230,93,44,0.4)', color: '#e65d2c', '&:hover': { borderColor: '#e65d2c' } }}
+                    sx={{ fontSize: '0.72rem', borderColor: AP.accentBdr, color: AP.accent, '&:hover': { borderColor: AP.accent } }}
                   >
                     Add Tournament
                   </Button>
@@ -1783,7 +2096,7 @@ function Dashboard({ token, onLogout }) {
               <Box sx={{ p: loadingTournaments ? 0 : 2 }}>
                 {loadingTournaments ? (
                   <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                    <CircularProgress size={28} sx={{ color: '#e65d2c' }} />
+                    <CircularProgress size={28} sx={{ color: AP.accent }} />
                   </Box>
                 ) : tournaments.length === 0 ? (
                   <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -1817,7 +2130,7 @@ function Dashboard({ token, onLogout }) {
               <Box sx={{
                 px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 borderBottom: '1px solid rgba(255,255,255,0.07)',
-                background: 'linear-gradient(90deg, rgba(230,93,44,0.08) 0%, transparent 60%)',
+                background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
               }}>
                 <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
                   JW LIVE CHANNELS
@@ -1833,7 +2146,7 @@ function Dashboard({ token, onLogout }) {
                     startIcon={<LiveTvIcon sx={{ fontSize: '14px !important' }} />}
                     variant="outlined"
                     onClick={() => setCreateStreamOpen(true)}
-                    sx={{ fontSize: '0.72rem', borderColor: 'rgba(230,93,44,0.4)', color: '#e65d2c', '&:hover': { borderColor: '#e65d2c' } }}
+                    sx={{ fontSize: '0.72rem', borderColor: AP.accentBdr, color: AP.accent, '&:hover': { borderColor: AP.accent } }}
                   >
                     New Live Stream
                   </Button>
@@ -1846,7 +2159,7 @@ function Dashboard({ token, onLogout }) {
 
               {loadingChannels ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                  <CircularProgress size={28} sx={{ color: '#e65d2c' }} />
+                  <CircularProgress size={28} sx={{ color: AP.accent }} />
                 </Box>
               ) : channels.length === 0 && !channelError ? (
                 <Typography variant="body2" sx={{ color: '#a8bcd4', textAlign: 'center', py: 3 }}>
@@ -1884,7 +2197,8 @@ function Dashboard({ token, onLogout }) {
                         stopping:   'Stopping',
                         destroying: 'Destroying',
                       }
-                      const statusLabel = STATUS_LABELS[ch.status?.toLowerCase()] || ch.status || 'Idle'
+                      const statusLabel  = STATUS_LABELS[ch.status?.toLowerCase()] || ch.status || 'Idle'
+                      const spinupStatus = getSpinupStatus(ch)
                       const fmtTime = iso => {
                         if (!iso) return '—'
                         return new Date(iso).toLocaleString('en-US', {
@@ -1901,15 +2215,23 @@ function Dashboard({ token, onLogout }) {
                             </Typography>
                           </TableCell>
                           <TableCell>
-                            <Chip
-                              label={statusLabel}
-                              size="small"
-                              sx={{
-                                height: 18, fontSize: '0.6rem', fontWeight: 700,
-                                bgcolor: isLive ? 'rgba(230,93,44,0.2)' : ch.status === 'requested' ? 'rgba(33,150,243,0.15)' : 'rgba(255,255,255,0.06)',
-                                color: isLive ? '#e65d2c' : ch.status === 'requested' ? '#64b5f6' : '#a8bcd4',
-                              }}
-                            />
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
+                              <Chip
+                                label={statusLabel}
+                                size="small"
+                                sx={{
+                                  height: 18, fontSize: '0.6rem', fontWeight: 700,
+                                  bgcolor: isLive ? AP.liveDim : ch.status === 'requested' ? 'rgba(33,150,243,0.15)' : 'rgba(255,255,255,0.06)',
+                                  color:  isLive ? AP.live    : ch.status === 'requested' ? '#64b5f6'                : AP.muted,
+                                }}
+                              />
+                              {spinupStatus === 'starting_soon' && (
+                                <Chip label="Starting Soon" size="small" sx={{ height: 16, fontSize: '0.57rem', fontWeight: 700, bgcolor: AP.warnDim, color: AP.warn }} />
+                              )}
+                              {spinupStatus === 'winding_down' && (
+                                <Chip label="Winding Down" size="small" sx={{ height: 16, fontSize: '0.57rem', fontWeight: 700, bgcolor: AP.slateDim, color: AP.slate }} />
+                              )}
+                            </Box>
                           </TableCell>
                           <TableCell>
                             <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{fmtTime(ch.stream_start)}</Typography>
@@ -1937,7 +2259,7 @@ function Dashboard({ token, onLogout }) {
                                 </Box>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                   <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.6rem', width: 28 }}>KEY</Typography>
-                                  <Typography variant="caption" sx={{ color: '#e65d2c', fontFamily: 'monospace', fontSize: '0.6rem' }}>{ch.ingest_key}</Typography>
+                                  <Typography variant="caption" sx={{ color: AP.accent, fontFamily: 'monospace', fontSize: '0.6rem' }}>{ch.ingest_key}</Typography>
                                   <Tooltip title="Copy stream key">
                                     <IconButton size="small" onClick={() => navigator.clipboard.writeText(ch.ingest_key)} sx={{ color: '#a8bcd4', flexShrink: 0, p: 0.25 }}>
                                       <ContentCopyIcon sx={{ fontSize: 11 }} />
@@ -1950,15 +2272,28 @@ function Dashboard({ token, onLogout }) {
                             )}
                           </TableCell>
                           <TableCell align="right">
-                            <Tooltip title="Delete stream">
-                              <IconButton
-                                size="small"
-                                onClick={() => deleteChannel(ch.id, ch.name)}
-                                sx={{ color: '#a8bcd4', '&:hover': { color: '#f44336' } }}
-                              >
-                                <DeleteIcon sx={{ fontSize: 16 }} />
-                              </IconButton>
-                            </Tooltip>
+                            <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                              {ch.stream_url && (
+                                <Tooltip title="Preview stream (admin only)">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => setPreviewDialog({ open: true, channelName: ch.name, streamUrl: ch.stream_url })}
+                                    sx={{ color: AP.accent, '&:hover': { color: AP.accentHov } }}
+                                  >
+                                    <PlayArrowIcon sx={{ fontSize: 18 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                              <Tooltip title="Delete stream">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => deleteChannel(ch.id, ch.name)}
+                                  sx={{ color: AP.muted, '&:hover': { color: '#f44336' } }}
+                                >
+                                  <DeleteIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
                           </TableCell>
                         </TableRow>
                       )
@@ -1969,6 +2304,7 @@ function Dashboard({ token, onLogout }) {
             </Paper>
           </>
         ) : (
+          /* costs tab */
           <CostsPage
             tournaments={tournaments}
             channels={channels}
@@ -1982,6 +2318,12 @@ function Dashboard({ token, onLogout }) {
       </Box>
 
       {/* ── Dialogs ─────────────────────────────────── */}
+      <PreviewPlayerDialog
+        open={previewDialog.open}
+        channelName={previewDialog.channelName}
+        streamUrl={previewDialog.streamUrl}
+        onClose={() => setPreviewDialog({ open: false, channelName: '', streamUrl: '' })}
+      />
       <CostRecordDialog
         open={costRecordDialog.open}
         initial={costRecordDialog.initial}
@@ -2050,7 +2392,7 @@ export default function Admin() {
   }
 
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={adminTheme}>
       <CssBaseline />
       {token
         ? <Dashboard token={token} onLogout={handleLogout} />
