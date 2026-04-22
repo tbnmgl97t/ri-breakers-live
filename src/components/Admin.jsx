@@ -1781,6 +1781,150 @@ function TenantSettingsPanel({ token }) {
   )
 }
 
+// ─── CDN read-only panel (tenant admin view) ──────────────────────────────────
+
+function CdnReadOnlyPanel({ records = [], pricing, tournaments = [] }) {
+  const [monthFilter, setMonthFilter] = useState('all')
+
+  const months = [...new Set(records.map(r => r.date?.slice(0, 7)).filter(Boolean))].sort().reverse()
+
+  const filtered = monthFilter === 'all'
+    ? records
+    : records.filter(r => r.date?.startsWith(monthFilter))
+
+  const subtotal    = filtered.reduce((s, r) => s + (r.cost_total   || 0), 0)
+  const totalGB     = filtered.reduce((s, r) => s + (r.gb_delivered || 0), 0)
+
+  function fmtUSD(n) { return '$' + Number(n || 0).toFixed(2) }
+  function fmtGB(n)  { return Number(n || 0).toFixed(3) + ' GB' }
+  function fmtDate(ds) {
+    if (!ds) return '—'
+    return new Date(ds + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+  function monthLabel(yyyymm) {
+    if (!yyyymm) return ''
+    const [y, m] = yyyymm.split('-')
+    return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  }
+
+  return (
+    <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+      {/* Header */}
+      <Box sx={{
+        px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        borderBottom: '1px solid rgba(255,255,255,0.07)',
+        background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <LiveTvIcon sx={{ color: AP.accent, fontSize: 18 }} />
+          <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
+            CDN USAGE
+          </Typography>
+          <Chip label="READ-ONLY" size="small"
+            sx={{ fontSize: '0.6rem', height: 18, bgcolor: AP.accentDim, color: AP.accent, border: `1px solid ${AP.accentBdr}` }} />
+        </Box>
+        <TextField
+          select size="small" value={monthFilter}
+          onChange={e => setMonthFilter(e.target.value)}
+          sx={{ minWidth: 160, '& .MuiInputBase-root': { fontSize: '0.75rem', height: 28 } }}
+        >
+          <MenuItem value="all">All months</MenuItem>
+          {months.map(mk => <MenuItem key={mk} value={mk}>{monthLabel(mk)}</MenuItem>)}
+        </TextField>
+      </Box>
+
+      {/* Summary row */}
+      {filtered.length > 0 && (
+        <Box sx={{
+          px: 2, py: 1, display: 'flex', gap: 3, flexWrap: 'wrap',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          bgcolor: 'rgba(99,102,241,0.04)',
+        }}>
+          <Box>
+            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Total Cost
+            </Typography>
+            <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: AP.accent, lineHeight: 1.2 }}>
+              {fmtUSD(subtotal)}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              GB Delivered
+            </Typography>
+            <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: AP.text, lineHeight: 1.2 }}>
+              {fmtGB(totalGB)}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Feed Records
+            </Typography>
+            <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: AP.text, lineHeight: 1.2 }}>
+              {filtered.length}
+            </Typography>
+          </Box>
+        </Box>
+      )}
+
+      {/* Table */}
+      {filtered.length === 0 ? (
+        <Box sx={{ textAlign: 'center', py: 4 }}>
+          <LiveTvIcon sx={{ color: 'rgba(168,188,212,0.2)', fontSize: 36, mb: 1 }} />
+          <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.5)' }}>
+            No CDN records {monthFilter !== 'all' ? `for ${monthLabel(monthFilter)}` : 'yet'}.
+          </Typography>
+        </Box>
+      ) : (
+        <Box sx={{ overflowX: 'auto' }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                {['Date', 'Label', 'Channel', 'GB Delivered', 'GB Ingested', 'GB Stored', 'Cost'].map(h => (
+                  <TableCell key={h} sx={{ color: AP.muted, fontSize: '0.7rem', fontWeight: 600 }}>{h}</TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filtered.map(r => (
+                <TableRow key={r.id} hover>
+                  <TableCell sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtDate(r.date)}</TableCell>
+                  <TableCell sx={{ fontSize: '0.78rem' }}>{r.label}</TableCell>
+                  <TableCell sx={{ fontSize: '0.78rem' }}>
+                    <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{r.channel_name}</Typography>
+                    <Typography sx={{ fontSize: '0.65rem', color: AP.muted, fontFamily: 'monospace' }}>{r.channel_id}</Typography>
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '0.78rem' }}>{fmtGB(r.gb_delivered)}</TableCell>
+                  <TableCell sx={{ fontSize: '0.78rem' }}>{fmtGB(r.gb_ingested)}</TableCell>
+                  <TableCell sx={{ fontSize: '0.78rem' }}>{fmtGB(r.gb_stored)}</TableCell>
+                  <TableCell sx={{ fontSize: '0.78rem', fontWeight: 700, color: AP.accent }}>{fmtUSD(r.cost_total)}</TableCell>
+                </TableRow>
+              ))}
+              <TableRow sx={{ bgcolor: AP.accentDim }}>
+                <TableCell colSpan={6} sx={{ fontSize: '0.75rem', fontWeight: 700, color: AP.muted }}>
+                  {monthFilter === 'all' ? 'Grand Total' : `${monthLabel(monthFilter)} Total`}
+                </TableCell>
+                <TableCell sx={{ fontSize: '0.85rem', fontWeight: 800, color: AP.accent }}>
+                  {fmtUSD(subtotal)}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </Box>
+      )}
+
+      {pricing && (
+        <Box sx={{ px: 2, py: 1, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.65rem' }}>
+            Rates: ${pricing.ingestion_per_gb}/GB ingested · ${pricing.storage_per_gb}/GB stored · ${pricing.playout_per_gb}/GB delivered
+            {Object.keys(pricing.channel_overrides || {}).length > 0 && ' · Per-channel overrides active'}
+          </Typography>
+        </Box>
+      )}
+    </Paper>
+  )
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 function Dashboard({ token, onLogout }) {
@@ -1793,6 +1937,8 @@ function Dashboard({ token, onLogout }) {
 
   const [costRecords, setCostRecords] = useState([])
   const [costRecordDialog, setCostRecordDialog] = useState({ open: false, initial: null })
+  const [cdnRecords, setCdnRecords] = useState([])
+  const [cdnPricing, setCdnPricing] = useState(null)
 
   const [tournamentDialog, setTournamentDialog] = useState({ open: false, initial: null })
   const [dayDialog, setDayDialog] = useState({ open: false, initial: null, tournament: null })
@@ -1842,11 +1988,23 @@ function Dashboard({ token, onLogout }) {
     } catch {}
   }, [])
 
+  const fetchCdnData = useCallback(async () => {
+    try {
+      const [cRes, pRes] = await Promise.all([
+        fetch('/api/cdn-records'),
+        fetch('/api/pricing'),
+      ])
+      if (cRes.ok) setCdnRecords(await cRes.json())
+      if (pRes.ok) setCdnPricing(await pRes.json())
+    } catch {}
+  }, [])
+
   useEffect(() => {
     fetchTournaments()
     fetchChannels()
     fetchCostRecords()
-  }, [fetchTournaments, fetchChannels, fetchCostRecords])
+    fetchCdnData()
+  }, [fetchTournaments, fetchChannels, fetchCostRecords, fetchCdnData])
 
   // ── Cost record CRUD ──────────────────────────────────────────────────────────
 
@@ -2050,7 +2208,8 @@ function Dashboard({ token, onLogout }) {
         >
           <Tab label="Dashboard" value="dashboard" />
           <Tab label="Costs"    value="costs"    icon={<AttachMoneyIcon sx={{ fontSize: 15 }} />} iconPosition="start" />
-          <Tab label="Settings" value="settings" icon={<SettingsIcon   sx={{ fontSize: 15 }} />} iconPosition="start" />
+          <Tab label="CDN"      value="cdn"      icon={<LiveTvIcon      sx={{ fontSize: 15 }} />} iconPosition="start" />
+          <Tab label="Settings" value="settings" icon={<SettingsIcon    sx={{ fontSize: 15 }} />} iconPosition="start" />
         </Tabs>
       </Box>
 
@@ -2060,6 +2219,8 @@ function Dashboard({ token, onLogout }) {
 
         {activeTab === 'settings' ? (
           <TenantSettingsPanel token={token} />
+        ) : activeTab === 'cdn' ? (
+          <CdnReadOnlyPanel records={cdnRecords} pricing={cdnPricing} tournaments={tournaments} />
         ) : activeTab === 'dashboard' ? (
           <>
             {/* ── Tournaments ──────────────────────── */}

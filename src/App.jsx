@@ -18,6 +18,7 @@ import CommandCenter from './components/CommandCenter'
 import EventSchedule from './components/EventSchedule'
 import PreShowScreen, { isAnyEventLive, parseEventWindow, EVENTS as FALLBACK_EVENTS } from './components/PreShowScreen'
 import Admin from './components/Admin'
+import TdAdmin from './components/TdAdmin'
 
 /** Flatten all tournament days into shape PreShowScreen / EventSchedule expect */
 function flattenTournamentDays(tournaments) {
@@ -242,6 +243,7 @@ function AppContent() {
       <CssBaseline />
       <Routes>
         <Route path="/admin"    element={<Admin />} />
+        <Route path="/td-admin" element={<TdAdmin />} />
         <Route path="*"         element={<LiveFeed />} />
       </Routes>
     </ThemeProvider>
