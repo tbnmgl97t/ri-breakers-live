@@ -228,7 +228,7 @@ export default function CommandCenter() {
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             bgcolor: 'background.paper', gap: 1.5,
           }}>
-            <RadarIcon sx={{ color: 'rgba(168,188,212,0.3)', fontSize: 40 }} />
+            <Radar size={40} color="rgba(168,188,212,0.3)" />
             <Typography variant="body2" sx={{ color: '#a8bcd4', fontWeight: 600 }}>
               Unable to connect
             </Typography>
