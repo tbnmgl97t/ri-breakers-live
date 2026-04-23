@@ -1210,20 +1210,11 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
 
               {/* ── Stream Cost Estimator ──────────────────────── */}
               {(() => {
-                // Pull live rates; fall back to TD Admin defaults while loading
                 const feedRate   = pricing?.feed_rate_per_hr ?? 15
-                const cdnPerGb   = pricing?.cdn_rate_per_gb  ?? 0.05
-                const gbPer50Min = pricing?.gb_per_50_min    ?? 4
-                // CDN cost per hour = (60min / 50min) × gb_per_50min × cdn_per_gb
-                const cdnPerHr   = (60 / 50) * gbPer50Min * cdnPerGb
-                const effectiveRate = feedRate + cdnPerHr
-
                 const startUtc   = channelType === 'live_event' ? toUtcIso(startDate, fromTimeInput(startTime)) : null
                 const endUtc     = channelType === 'live_event' ? toUtcIso(endDate,   fromTimeInput(endTime))   : null
                 const hours      = (startUtc && endUtc) ? Math.max(0, (new Date(endUtc) - new Date(startUtc)) / 3_600_000) : null
-                const feedCost   = hours != null ? hours * feedRate   : null
-                const cdnCost    = hours != null ? hours * cdnPerHr   : null
-                const streamCost = hours != null ? hours * effectiveRate : null
+                const streamCost = hours != null ? hours * feedRate : null
                 const isAlwaysOn = channelType === 'always_on'
 
                 return (
@@ -1246,7 +1237,7 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
                       {isAlwaysOn ? (
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                           <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>Rate</Typography>
-                          <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600, fontSize: '0.72rem' }}>{fmtUSD(effectiveRate)}/hr</Typography>
+                          <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600, fontSize: '0.72rem' }}>{fmtUSD(feedRate)}/hr</Typography>
                         </Box>
                       ) : hours != null ? (
                         <>
@@ -1257,18 +1248,14 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
                             </Typography>
                           </Box>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>Feed</Typography>
-                            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>{fmtUSD(feedCost)}</Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>CDN</Typography>
-                            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>~{fmtUSD(cdnCost)}</Typography>
+                            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>Feed rate</Typography>
+                            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>{fmtUSD(feedRate)}/hr</Typography>
                           </Box>
                         </>
                       ) : (
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>Effective rate</Typography>
-                          <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>{fmtUSD(effectiveRate)}/hr · set end time for total</Typography>
+                          <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>Feed rate</Typography>
+                          <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>{fmtUSD(feedRate)}/hr · set end time for total</Typography>
                         </Box>
                       )}
 
@@ -1276,7 +1263,7 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 0.25, pt: 0.75, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                         <InfoOutlinedIcon sx={{ fontSize: 12, color: 'rgba(148,163,184,0.5)', mt: '1px', flexShrink: 0 }} />
                         <Typography variant="caption" sx={{ color: 'rgba(148,163,184,0.5)', fontSize: '0.67rem', lineHeight: 1.4 }}>
-                          CDN estimate based on stream output (~{((60/50)*gbPer50Min).toFixed(1)} GB/hr). Actual cost may vary by viewer load.
+                          CDN delivery cost is calculated after the stream ends based on actual viewer minutes.
                         </Typography>
                       </Box>
                     </Box>
@@ -1326,16 +1313,11 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
 
               {/* ── Cost Total ─────────────────────────────────── */}
               {(() => {
-                const feedRate      = pricing?.feed_rate_per_hr ?? 15
-                const cdnPerGb      = pricing?.cdn_rate_per_gb  ?? 0.05
-                const gbPer50Min    = pricing?.gb_per_50_min    ?? 4
-                const cdnPerHr      = (60 / 50) * gbPer50Min * cdnPerGb
-                const effectiveRate = feedRate + cdnPerHr
-
+                const feedRate   = pricing?.feed_rate_per_hr ?? 15
                 const startUtc   = channelType === 'live_event' ? toUtcIso(startDate, fromTimeInput(startTime)) : null
                 const endUtc     = channelType === 'live_event' ? toUtcIso(endDate,   fromTimeInput(endTime))   : null
                 const hours      = (startUtc && endUtc) ? Math.max(0, (new Date(endUtc) - new Date(startUtc)) / 3_600_000) : null
-                const streamCost = hours != null ? hours * effectiveRate : null
+                const streamCost = hours != null ? hours * feedRate : null
                 const vodCost    = downloadable ? 5 : 0
                 const total      = streamCost != null ? streamCost + vodCost : (downloadable ? vodCost : null)
                 if (total == null && !downloadable) return null
