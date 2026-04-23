@@ -295,22 +295,35 @@ function LoginScreen({ onLogin }) {
         component="form"
         onSubmit={handleSubmit}
       >
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3, gap: 1 }}>
-          {/* EventHub Live mark */}
-          <Box sx={{
-            width: 56, height: 56, borderRadius: '14px',
-            background: `linear-gradient(135deg, ${AP.accent} 0%, #818cf8 100%)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: `0 0 24px ${AP.accentBdr}`,
-          }}>
-            <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M17 3L7 17h9l-3 10 13-16h-9l3-8z" fill="white" stroke="white" strokeWidth="0.5" strokeLinejoin="round"/>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3, gap: 1.5 }}>
+          {/* Logo B — broadcast rings + play mark */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <svg width="48" height="48" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="22" cy="22" r="18" stroke="rgba(99,102,241,0.25)" strokeWidth="1.5"/>
+              <circle cx="22" cy="22" r="12" stroke="rgba(99,102,241,0.45)" strokeWidth="1.5"/>
+              <path d="M18 15.5l11 6.5-11 6.5V15.5z" fill="#6366f1"/>
             </svg>
+            <Box sx={{ lineHeight: 1 }}>
+              <Box sx={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: '1.4rem', letterSpacing: '-0.02em', color: '#fff', lineHeight: 1 }}>
+                Event<Box component="span" sx={{ color: AP.accent }}>Hub</Box>
+                <Box component="span" sx={{
+                  display: 'inline-flex', alignItems: 'center', gap: '3px',
+                  bgcolor: '#ef4444', borderRadius: '4px', px: '5px', py: '1px',
+                  fontSize: '0.5rem', fontWeight: 800, letterSpacing: '0.1em',
+                  verticalAlign: 'middle', ml: '6px', position: 'relative', top: '-2px',
+                }}>
+                  <Box component="span" sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: '#fff', flexShrink: 0,
+                    '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.4 } },
+                    animation: 'pulse 1.4s ease-in-out infinite',
+                  }}/>
+                  LIVE
+                </Box>
+              </Box>
+            </Box>
           </Box>
-          <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.08em', fontSize: '1.1rem', mt: 0.5 }}>
+          <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.08em', fontSize: '1.05rem', color: '#e2e8f0' }}>
             ADMIN DASHBOARD
           </Typography>
-          <Typography variant="caption" sx={{ color: '#a8bcd4' }}>EventHub Live</Typography>
         </Box>
 
         {error && <Alert severity="error" sx={{ mb: 2, fontSize: '0.8rem' }}>{error}</Alert>}
@@ -2311,7 +2324,28 @@ function Dashboard({ token, onLogout }) {
       <Box height={48} display="flex" alignItems="center" px={2} gap={1.5}
         sx={{ borderBottom: '1px solid rgba(255,255,255,0.06)', bgcolor: '#0a0f1a', flexShrink: 0, zIndex: 10 }}
       >
-        <Typography sx={{ fontFamily: "'Bayon'", letterSpacing: '0.1em', color: '#818cf8', fontSize: '0.95rem' }}>⚡ EVENTHUB LIVE</Typography>
+        {/* Topbar logo — B */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <svg width="26" height="26" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="22" cy="22" r="18" stroke="rgba(99,102,241,0.3)" strokeWidth="1.5"/>
+            <circle cx="22" cy="22" r="12" stroke="rgba(99,102,241,0.55)" strokeWidth="1.5"/>
+            <path d="M18 15.5l11 6.5-11 6.5V15.5z" fill="#6366f1"/>
+          </svg>
+          <Box sx={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: '0.9rem', letterSpacing: '-0.01em', color: '#fff', lineHeight: 1 }}>
+            Event<Box component="span" sx={{ color: AP.accent }}>Hub</Box>
+          </Box>
+          <Box component="span" sx={{
+            display: 'inline-flex', alignItems: 'center', gap: '3px',
+            bgcolor: '#ef4444', borderRadius: '3px', px: '5px', py: '1px',
+            fontSize: '0.5rem', fontWeight: 800, letterSpacing: '0.1em', color: '#fff',
+          }}>
+            <Box component="span" sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: '#fff',
+              '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.4 } },
+              animation: 'pulse 1.4s ease-in-out infinite', flexShrink: 0,
+            }}/>
+            LIVE
+          </Box>
+        </Box>
         <Typography variant="caption" sx={{ color: '#334155', fontSize: '0.7rem' }}>Admin</Typography>
         {liveNow > 0 && (
           <Chip label={`${liveNow} LIVE`} size="small"
