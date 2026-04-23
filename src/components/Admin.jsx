@@ -354,13 +354,36 @@ function LoginScreen({ onLogin }) {
 
 // ─── Event drawer (create / edit) ─────────────────────────────────────────────
 
+// ─── Time picker helpers ──────────────────────────────────────────────────────
+// "8:00 AM" ↔ "08:00" (HTML time input value)
+function toTimeInput(t) {
+  if (!t) return ''
+  const m = t.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
+  if (!m) return ''
+  let h = parseInt(m[1]); const min = m[2]; const ap = (m[3] || '').toUpperCase()
+  if (ap === 'PM' && h !== 12) h += 12
+  if (ap === 'AM' && h === 12) h = 0
+  return `${String(h).padStart(2, '0')}:${min}`
+}
+function fromTimeInput(t) {
+  if (!t) return ''
+  const [hStr, mStr] = t.split(':')
+  let h = parseInt(hStr); const min = mStr || '00'
+  const ap = h >= 12 ? 'PM' : 'AM'
+  if (h > 12) h -= 12
+  if (h === 0) h = 12
+  return `${h}:${min} ${ap}`
+}
+
 const EMPTY_TOURNAMENT = { name: '', location: '' }
 const EMPTY_DRAFT_SESSION = () => ({
   _key: Date.now() + Math.random(),
-  label: '', date: '', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'ET', streams: [],
+  label: '', date: '', start_time: '8:00 AM', end_time: '5:00 PM', streams: [],
 })
 
 function EventDrawer({ open, initial, onClose, onSave }) {
+  const { tenant }    = useTenant()
+  const tz            = tenant?.timezone || 'ET'
   const [form,        setForm]        = useState(EMPTY_TOURNAMENT)
   const [sessions,    setSessions]    = useState([])
   const [expandedIdx, setExpandedIdx] = useState(null)
@@ -376,7 +399,6 @@ function EventDrawer({ open, initial, onClose, onSave }) {
           date:        d.date       || '',
           start_time:  d.start_time || '8:00 AM',
           end_time:    d.end_time   || '5:00 PM',
-          tz:          'ET',
           streams:     getSessionStreams(d),
         }))
       : [])
@@ -416,7 +438,7 @@ function EventDrawer({ open, initial, onClose, onSave }) {
   async function handleSave() {
     setSaving(true)
     try {
-      await onSave({ ...form, sessions })
+      await onSave({ ...form, sessions: sessions.map(s => ({ ...s, tz })) })
       onClose()
     } finally {
       setSaving(false)
@@ -481,7 +503,7 @@ function EventDrawer({ open, initial, onClose, onSave }) {
                     {/* Session header row */}
                     <Box
                       onClick={() => setExpandedIdx(isOpen ? null : sIdx)}
-                      sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1, cursor: 'pointer', bgcolor: isOpen ? AP.accentDim : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' } }}
+                      sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.5, cursor: 'pointer', bgcolor: isOpen ? AP.accentDim : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' } }}
                     >
                       <IconButton size="small" sx={{ color: AP.accent, p: 0, flexShrink: 0 }}>
                         {isOpen ? <ExpandLessIcon sx={{ fontSize: 16 }} /> : <ExpandMoreIcon sx={{ fontSize: 16 }} />}
@@ -508,15 +530,21 @@ function EventDrawer({ open, initial, onClose, onSave }) {
 
                     {/* Session body */}
                     <Collapse in={isOpen}>
-                      <Box sx={{ px: 1.5, pb: 1.5, pt: 0.5, display: 'flex', flexDirection: 'column', gap: 1.5, borderTop: '1px solid rgba(255,255,255,0.14)' }}>
+                      <Box sx={{ px: 2, pb: 2, pt: 1.5, display: 'flex', flexDirection: 'column', gap: 2, borderTop: '1px solid rgba(255,255,255,0.14)' }}>
                         <Box sx={{ display: 'flex', gap: 1.5 }}>
                           <TextField size="small" label="Label" value={sess.label} onChange={e => updateSession(sIdx, 'label', e.target.value)} placeholder="e.g. Day 1" sx={{ flex: 1 }} />
                           <TextField size="small" label="Date" type="date" value={sess.date} onChange={e => updateSession(sIdx, 'date', e.target.value)} InputLabelProps={{ shrink: true }} sx={{ flex: 1 }} />
                         </Box>
-                        <Box sx={{ display: 'flex', gap: 1.5 }}>
-                          <TextField size="small" label="Start" value={sess.start_time} onChange={e => updateSession(sIdx, 'start_time', e.target.value)} placeholder="8:00 AM" sx={{ flex: 1 }} />
-                          <TextField size="small" label="End"   value={sess.end_time}   onChange={e => updateSession(sIdx, 'end_time',   e.target.value)} placeholder="5:00 PM" sx={{ flex: 1 }} />
-                          <TextField size="small" label="TZ"    value={sess.tz}          onChange={e => updateSession(sIdx, 'tz',         e.target.value)} placeholder="ET"       sx={{ width: 72 }} />
+                        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                          <TextField size="small" label="Start" type="time" InputLabelProps={{ shrink: true }}
+                            value={toTimeInput(sess.start_time)}
+                            onChange={e => updateSession(sIdx, 'start_time', fromTimeInput(e.target.value))}
+                            sx={{ flex: 1 }} />
+                          <TextField size="small" label="End" type="time" InputLabelProps={{ shrink: true }}
+                            value={toTimeInput(sess.end_time)}
+                            onChange={e => updateSession(sIdx, 'end_time', fromTimeInput(e.target.value))}
+                            sx={{ flex: 1 }} />
+                          <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.7rem', whiteSpace: 'nowrap', flexShrink: 0 }}>{tz}</Typography>
                         </Box>
 
                         {/* Streams */}
@@ -524,7 +552,7 @@ function EventDrawer({ open, initial, onClose, onSave }) {
                           <Typography sx={{ ...sectionLabel, mb: 0.5 }}>STREAMS</Typography>
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                             {sess.streams.map((st, stIdx) => (
-                              <Box key={st.id ?? stIdx} sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 1, px: 1, py: 0.75 }}>
+                              <Box key={st.id ?? stIdx} sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 1, px: 1.5, py: 1 }}>
                                 <Typography variant="caption" sx={{ color: AP.muted, fontWeight: 700, minWidth: 18, fontSize: '0.65rem' }}>#{stIdx + 1}</Typography>
                                 <TextField size="small" placeholder="Stream name" value={st.name} onChange={e => updateStream(sIdx, stIdx, 'name', e.target.value)}
                                   sx={{ width: 130, '& input': { fontSize: '0.75rem', py: '4px' }, '& .MuiOutlinedInput-root': { height: 28 } }} />
@@ -566,16 +594,18 @@ function EventDrawer({ open, initial, onClose, onSave }) {
 
 // ─── Session drawer (create / edit within an event) ──────────────────────────
 
-const EMPTY_DAY = { label: '', date: '', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'ET' }
+const EMPTY_DAY = { label: '', date: '', start_time: '8:00 AM', end_time: '5:00 PM' }
 
 function SessionDrawer({ open, initial, tournament, channels, onClose, onSaved, onOpenPicker }) {
+  const { tenant } = useTenant()
+  const tz         = tenant?.timezone || 'ET'
   const [form, setForm] = useState(EMPTY_DAY)
   const [streams, setStreams] = useState([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     setForm(initial
-      ? { label: initial.label, date: initial.date, start_time: initial.start_time, end_time: initial.end_time, tz: 'ET' }
+      ? { label: initial.label, date: initial.date, start_time: initial.start_time, end_time: initial.end_time }
       : EMPTY_DAY)
     setStreams(initial ? getSessionStreams(initial) : [])
   }, [initial, open])
@@ -600,7 +630,7 @@ function SessionDrawer({ open, initial, tournament, channels, onClose, onSaved, 
   async function handleSave() {
     setSaving(true)
     try {
-      await onSaved({ ...form, streams })
+      await onSaved({ ...form, tz, streams })
       onClose()
     } finally {
       setSaving(false)
@@ -631,11 +661,15 @@ function SessionDrawer({ open, initial, tournament, channels, onClose, onSaved, 
 
         <TextField label="Label" value={form.label} onChange={set('label')} size="small" fullWidth autoFocus placeholder="e.g. Day 1" />
         <TextField label="Date" type="date" value={form.date} onChange={set('date')} size="small" fullWidth InputLabelProps={{ shrink: true }} />
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
-          <TextField label="Start" value={form.start_time} onChange={set('start_time')} size="small" fullWidth placeholder="8:00 AM" />
-          <TextField label="End"   value={form.end_time}   onChange={set('end_time')}   size="small" fullWidth placeholder="5:00 PM" />
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+          <TextField label="Start" type="time" size="small" fullWidth InputLabelProps={{ shrink: true }}
+            value={toTimeInput(form.start_time)}
+            onChange={e => setForm(f => ({ ...f, start_time: fromTimeInput(e.target.value) }))} />
+          <TextField label="End" type="time" size="small" fullWidth InputLabelProps={{ shrink: true }}
+            value={toTimeInput(form.end_time)}
+            onChange={e => setForm(f => ({ ...f, end_time: fromTimeInput(e.target.value) }))} />
+          <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.75rem', whiteSpace: 'nowrap', flexShrink: 0 }}>{tz}</Typography>
         </Box>
-        <TextField label="Timezone" value={form.tz} onChange={set('tz')} size="small" fullWidth placeholder="ET" />
 
         {/* Streams section */}
         <Box>
@@ -1847,6 +1881,7 @@ function TenantSettingsPanel({ token }) {
           title:    data.title    || '',
           subtitle: data.subtitle || '',
           logo_url: data.logo_url || '',
+          timezone: data.timezone || 'ET',
           colors: {
             primary:    data.colors?.primary    || '#e65d2c',
             secondary:  data.colors?.secondary  || '#0a205a',
@@ -1914,6 +1949,8 @@ function TenantSettingsPanel({ token }) {
           <TextField size="small" fullWidth label="Team / Organization Name" value={form.title} onChange={e => setField('title', e.target.value)} />
           <TextField size="small" fullWidth label="Subtitle" value={form.subtitle} onChange={e => setField('subtitle', e.target.value)} placeholder="e.g. Sport Fishing Championship" />
           <TextField size="small" fullWidth label="Logo URL" value={form.logo_url} onChange={e => setField('logo_url', e.target.value)} placeholder="https://..." />
+          <TextField size="small" label="Default Timezone" value={form.timezone || ''} onChange={e => setField('timezone', e.target.value)}
+            placeholder="ET" helperText="Used on all sessions (e.g. ET, PT, CT)" sx={{ width: 220 }} />
           {form.logo_url && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Box component="img" src={form.logo_url} alt="Logo preview"
