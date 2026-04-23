@@ -32,6 +32,7 @@ import EventIcon from '@mui/icons-material/Event'
 import DownloadIcon from '@mui/icons-material/Download'
 import LinkIcon from '@mui/icons-material/Link'
 import VpnKeyIcon from '@mui/icons-material/VpnKey'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { useTenant } from '../contexts/TenantContext'
 
 const SESSION_KEY = 'ri_admin_token'
@@ -1191,6 +1192,70 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
                 )}
               </Box>
 
+              {/* ── Stream Cost Estimator ──────────────────────── */}
+              {(() => {
+                const startUtc = channelType === 'live_event' ? toUtcIso(startDate, fromTimeInput(startTime)) : null
+                const endUtc   = channelType === 'live_event' ? toUtcIso(endDate,   fromTimeInput(endTime))   : null
+                const hours    = (startUtc && endUtc) ? Math.max(0, (new Date(endUtc) - new Date(startUtc)) / 3_600_000) : null
+                const streamCost = hours != null ? hours * FIXED_RATE : null
+                const isAlwaysOn = channelType === 'always_on'
+
+                return (
+                  <Box sx={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: 1.5, overflow: 'hidden' }}>
+                    {/* Header row */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.75, py: 1.25, borderBottom: '1px solid rgba(255,255,255,0.07)', bgcolor: 'rgba(255,255,255,0.02)' }}>
+                      <AttachMoneyIcon sx={{ color: AP.accent, fontSize: 16 }} />
+                      <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.09em', color: '#cbd5e1', flex: 1 }}>
+                        STREAM COST ESTIMATE
+                      </Typography>
+                      {streamCost != null && (
+                        <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: AP.accent }}>
+                          {fmtUSD(streamCost)}
+                        </Typography>
+                      )}
+                    </Box>
+
+                    {/* Breakdown rows */}
+                    <Box sx={{ px: 1.75, py: 1.25, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                      {isAlwaysOn ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>Rate</Typography>
+                          <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600, fontSize: '0.72rem' }}>{fmtUSD(FIXED_RATE)}/hr</Typography>
+                        </Box>
+                      ) : hours != null ? (
+                        <>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>Duration</Typography>
+                            <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600, fontSize: '0.72rem' }}>
+                              {hours % 1 === 0 ? hours : hours.toFixed(1)} hr{hours !== 1 ? 's' : ''}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>Rate</Typography>
+                            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>
+                              {fmtUSD(RATES.storage)}/hr storage · {fmtUSD(RATES.ingestion)}/hr ingest · {fmtUSD(RATES.playout)}/hr playout
+                            </Typography>
+                          </Box>
+                        </>
+                      ) : (
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>Rate</Typography>
+                          <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>{fmtUSD(FIXED_RATE)}/hr · set end time for estimate</Typography>
+                        </Box>
+                      )}
+
+                      {/* CDN note */}
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5, mt: 0.25, pt: 0.75, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                        <InfoOutlinedIcon sx={{ fontSize: 12, color: 'rgba(148,163,184,0.5)', mt: '1px', flexShrink: 0 }} />
+                        <Typography variant="caption" sx={{ color: 'rgba(148,163,184,0.5)', fontSize: '0.67rem', lineHeight: 1.4 }}>
+                          CDN delivery costs are calculated and added after the stream ends.
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                )
+              })()}
+
               {/* ── Downloadable Recording ─────────────────────── */}
               <Box
                 onClick={() => setDownloadable(v => !v)}
@@ -1230,6 +1295,50 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
                   </Box>
                 </Box>
               </Box>
+
+              {/* ── Cost Total ─────────────────────────────────── */}
+              {(() => {
+                const startUtc   = channelType === 'live_event' ? toUtcIso(startDate, fromTimeInput(startTime)) : null
+                const endUtc     = channelType === 'live_event' ? toUtcIso(endDate,   fromTimeInput(endTime))   : null
+                const hours      = (startUtc && endUtc) ? Math.max(0, (new Date(endUtc) - new Date(startUtc)) / 3_600_000) : null
+                const streamCost = hours != null ? hours * FIXED_RATE : null
+                const vodCost    = downloadable ? 5 : 0
+                const total      = streamCost != null ? streamCost + vodCost : (downloadable ? vodCost : null)
+                if (total == null && !downloadable) return null   // nothing to show yet
+
+                return (
+                  <Box sx={{ border: `1px solid ${AP.accentBdr}`, borderRadius: 1.5, overflow: 'hidden', bgcolor: AP.accentDim }}>
+                    <Box sx={{ px: 1.75, py: 1.25, display: 'flex', flexDirection: 'column', gap: 0.6 }}>
+                      {streamCost != null && (
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>
+                            Stream ({hours % 1 === 0 ? hours : hours.toFixed(1)} hr{hours !== 1 ? 's' : ''})
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>{fmtUSD(streamCost)}</Typography>
+                        </Box>
+                      )}
+                      {downloadable && (
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.72rem' }}>Downloadable Recording</Typography>
+                          <Typography variant="caption" sx={{ color: AP.live, fontSize: '0.72rem', fontWeight: 700 }}>+{fmtUSD(vodCost)}</Typography>
+                        </Box>
+                      )}
+                      <Divider sx={{ borderColor: AP.accentBdr, my: 0.25 }} />
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#cbd5e1', letterSpacing: '0.06em' }}>
+                          ESTIMATED TOTAL
+                          {streamCost == null && (
+                            <Box component="span" sx={{ fontWeight: 400, color: AP.muted, ml: 0.75, fontSize: '0.65rem' }}>· set end time for full estimate</Box>
+                          )}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.95rem', fontWeight: 800, color: AP.accent }}>
+                          {total != null ? fmtUSD(total) : `+${fmtUSD(vodCost)}`}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                )
+              })()}
             </>
           ) : (
             /* ── Result card ─────────────────────────────────── */
