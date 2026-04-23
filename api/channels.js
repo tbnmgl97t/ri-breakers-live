@@ -42,8 +42,11 @@ export default async function handler(req, res) {
         stream_end:       ch.metadata?.stream_end   || null,
         ingest_url:       rtmp?.url  || null,
         ingest_key:       rtmp?.key  || null,
+        ingest_format:    ch.ingest_format || null,
+        ingest_point_id:  ch.relationships?.ingest_point?.id || null,
+        ingest_point_name: ch.relationships?.ingest_point?.metadata?.display_name || null,
         // VOD / downloadable recording
-        enable_live_to_vod: ch.options?.enable_live_to_vod || ch.metadata?.enable_live_to_vod || false,
+        enable_live_to_vod: ch.enable_live_to_vod || ch.options?.enable_live_to_vod || ch.metadata?.enable_live_to_vod || false,
         vod_media_id:     ch.vod_media_id || ch.metadata?.vod_media_id || null,
       }
     })

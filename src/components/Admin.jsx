@@ -951,96 +951,193 @@ function StreamDetailDrawer({ open, channel: ch, onClose, onDelete, onPreview })
     </Box>
   )
 
+  const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' }) : null
+  const fmtTimeShort = iso => iso ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) : null
+  const streamTypeLabel = ch.stream_type === '24/7' ? '24/7 Channel' : ch.stream_type === 'event' ? 'Live Event' : (ch.stream_type || '—')
+
+  const CredCard = ({ label, value, field, icon: Icon }) => (
+    <Box sx={{ bgcolor: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, px: 2, py: 1.5, '&:hover': { borderColor: 'rgba(255,255,255,0.16)', bgcolor: 'rgba(0,0,0,0.35)' }, transition: 'all 0.15s' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          {Icon && <Icon sx={{ fontSize: 12, color: AP.muted }} />}
+          <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', color: AP.muted, textTransform: 'uppercase' }}>{label}</Typography>
+        </Box>
+        {value && (
+          <Tooltip title={copied === field ? 'Copied!' : 'Copy'}>
+            <IconButton size="small" onClick={() => copy(field, value)}
+              sx={{ p: 0.5, color: copied === field ? AP.live : 'rgba(255,255,255,0.25)', bgcolor: copied === field ? 'rgba(16,185,129,0.1)' : 'transparent', borderRadius: 1, '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)' } }}>
+              {copied === field ? <CheckCircleIcon sx={{ fontSize: 13 }} /> : <ContentCopyIcon sx={{ fontSize: 13 }} />}
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
+      <Typography sx={{ fontFamily: 'monospace', fontSize: '0.78rem', color: value ? '#e2e8f0' : AP.muted, wordBreak: 'break-all', lineHeight: 1.6 }}>
+        {value || '—'}
+      </Typography>
+    </Box>
+  )
+
+  const SectionLabel = ({ children }) => (
+    <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.12em', color: AP.muted, textTransform: 'uppercase', mb: 1.25, display: 'flex', alignItems: 'center', gap: 1, '&::after': { content: '""', flex: 1, height: '1px', bgcolor: 'rgba(255,255,255,0.06)' } }}>
+      {children}
+    </Typography>
+  )
+
+  const STATUS_CFG_GLOW = {
+    active:     { ...STATUS_CFG.active,     glow: 'rgba(16,185,129,0.2)'  },
+    requested:  { ...STATUS_CFG.requested,  glow: 'rgba(99,102,241,0.15)' },
+    scheduled:  { ...STATUS_CFG.scheduled,  glow: 'rgba(99,102,241,0.15)' },
+    creating:   { ...STATUS_CFG.creating,   glow: 'rgba(245,158,11,0.15)' },
+    idle:       { ...STATUS_CFG.idle,       glow: 'rgba(100,116,139,0.08)'},
+    stopping:   { ...STATUS_CFG.stopping,   glow: 'rgba(239,68,68,0.1)'   },
+    destroying: { ...STATUS_CFG.destroying, glow: 'rgba(100,116,139,0.08)'},
+  }
+  const cfgG = STATUS_CFG_GLOW[ch.status?.toLowerCase()] || STATUS_CFG_GLOW.idle
+
   return (
     <Drawer anchor="right" open={open} onClose={onClose}
-      PaperProps={{ sx: { width: 400, bgcolor: AP.bg, borderLeft: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', overflow: 'hidden' } }}
+      PaperProps={{ sx: { width: 440, bgcolor: '#13192b', borderLeft: `2px solid ${cfgG.border}`, boxShadow: '-8px 0 40px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', overflow: 'hidden' } }}
     >
-      {/* Header */}
-      <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
-          <LiveTvIcon sx={{ color: AP.accent, fontSize: 18, flexShrink: 0 }} />
-          <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {ch.name}
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-          <Box sx={{ display: 'inline-flex', alignItems: 'center', px: '8px', height: 20, borderRadius: '4px', fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.05em', backgroundColor: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
-            {cfg.label}
+      {/* ── Header ── */}
+      <Box sx={{ px: 2.5, pt: 2.5, pb: 2, background: `linear-gradient(135deg, ${cfgG.glow} 0%, rgba(19,25,43,0) 55%)`, borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+            <Box sx={{ width: 38, height: 38, borderRadius: 1.5, bgcolor: `${cfgG.color}18`, border: `1px solid ${cfgG.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <LiveTvIcon sx={{ fontSize: 19, color: cfgG.color }} />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '1.05rem', color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300 }}>
+                {ch.name}
+              </Typography>
+              <Typography sx={{ fontSize: '0.68rem', color: AP.muted, mt: 0.3 }}>
+                ID: <Box component="span" sx={{ fontFamily: 'monospace', color: 'rgba(255,255,255,0.4)' }}>{ch.id}</Box>
+              </Typography>
+            </Box>
           </Box>
-          <IconButton size="small" onClick={onClose} sx={{ color: AP.muted }}>
+          <IconButton size="small" onClick={onClose} sx={{ color: AP.muted, mt: -0.5, '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.07)' }, borderRadius: 1.5 }}>
             <CloseIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </Box>
+        {/* Badges */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, px: 1.25, py: 0.45, borderRadius: '20px', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.06em', backgroundColor: cfgG.bg, color: cfgG.color, border: `1px solid ${cfgG.border}` }}>
+            {cfgG.label === 'Live' && <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: cfgG.color }} />}
+            {cfgG.label}
+          </Box>
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, px: 1.25, py: 0.45, borderRadius: '20px', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.06em', backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            {ch.stream_type === '24/7' ? <AllInclusiveIcon sx={{ fontSize: 10 }} /> : <EventIcon sx={{ fontSize: 10 }} />}
+            {streamTypeLabel}
+          </Box>
+          {ch.enable_live_to_vod && (
+            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, px: 1.25, py: 0.45, borderRadius: '20px', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.06em', backgroundColor: AP.liveDim, color: AP.live, border: `1px solid ${AP.liveBdr}` }}>
+              <DownloadIcon sx={{ fontSize: 10 }} />
+              Downloadable
+            </Box>
+          )}
+          {ch.stream_start && (
+            <Typography sx={{ fontSize: '0.68rem', color: AP.muted, ml: 0.25 }}>
+              {fmtDate(ch.stream_start)}
+              {ch.stream_end && <Box component="span" sx={{ color: 'rgba(255,255,255,0.25)', mx: 0.4 }}>·</Box>}
+              {fmtTimeShort(ch.stream_start)}{ch.stream_end ? ` – ${fmtTimeShort(ch.stream_end)}` : ''} ET
+            </Typography>
+          )}
+        </Box>
       </Box>
 
-      {/* Scrollable body */}
-      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 2.5, py: 2.5, display: 'flex', flexDirection: 'column', gap: 2, scrollbarGutter: 'stable' }}>
-
-        {/* ID / Type */}
+      {/* ── Scrollable body ── */}
+      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 2.5, py: 2.5, display: 'flex', flexDirection: 'column', gap: 2.5, scrollbarGutter: 'stable' }}>
+        {/* Stream ID */}
         <Box>
-          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.09em', color: AP.muted, mb: 0.75, textTransform: 'uppercase' }}>Stream Info</Typography>
-          <Row label="ID"     value={ch.id}          field="id"     mono />
-          <Row label="Type"   value={ch.stream_type === '24/7' ? '24/7 Channel' : ch.stream_type === 'event' ? 'Live Event' : (ch.stream_type || '—')} />
-          <Row label="Status" value={cfg.label} />
+          <SectionLabel>Stream Info</SectionLabel>
+          <CredCard label="Stream ID" value={ch.id} field="id" icon={LinkIcon} />
         </Box>
 
-        <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+        {/* Playback */}
+        {ch.stream_url && (
+          <Box>
+            <SectionLabel>Playback</SectionLabel>
+            <CredCard label="HLS URL" value={ch.stream_url} field="stream_url" icon={LinkIcon} />
+          </Box>
+        )}
 
-        {/* Time window */}
-        <Box>
-          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.09em', color: AP.muted, mb: 0.75, textTransform: 'uppercase' }}>Schedule (ET)</Typography>
-          <Row label="Start" value={fmtTime(ch.stream_start) || '—'} />
-          <Row label="End"   value={fmtTime(ch.stream_end)   || '—'} />
-        </Box>
-
-        <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
-
-        {/* Playback / Ingest */}
-        <Box>
-          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.09em', color: AP.muted, mb: 0.75, textTransform: 'uppercase' }}>Stream / Ingest</Typography>
-          <Row label="HLS URL"    value={ch.stream_url}  field="stream_url"  mono />
-          <Row label="Ingest URL" value={ch.ingest_url}  field="ingest_url"  mono />
-          <Row label="Stream Key" value={ch.ingest_key}  field="ingest_key"  mono />
-        </Box>
+        {/* Ingest */}
+        {(ch.ingest_url || ch.ingest_key) && (
+          <Box>
+            <SectionLabel>Ingest</SectionLabel>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1.25 }}>
+              {ch.ingest_format && (() => {
+                const FORMAT_MAP = {
+                  rtmp:     { label: 'RTMP',     color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.3)'  },
+                  rtmps:    { label: 'RTMPS',    color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.3)'  },
+                  srt:      { label: 'SRT Push', color: '#38bdf8', bg: 'rgba(56,189,248,0.1)',  border: 'rgba(56,189,248,0.3)'  },
+                  srt_pull: { label: 'SRT Pull', color: '#38bdf8', bg: 'rgba(56,189,248,0.1)',  border: 'rgba(56,189,248,0.3)'  },
+                  hls:      { label: 'HLS',      color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.3)' },
+                  rtp:      { label: 'RTP',      color: '#34d399', bg: 'rgba(52,211,153,0.1)',  border: 'rgba(52,211,153,0.3)'  },
+                  rtp_fec:  { label: 'RTP FEC',  color: '#34d399', bg: 'rgba(52,211,153,0.1)',  border: 'rgba(52,211,153,0.3)'  },
+                }
+                const fmt = FORMAT_MAP[ch.ingest_format] || { label: ch.ingest_format.toUpperCase(), color: AP.muted, bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.12)' }
+                return (
+                  <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, px: 1.25, py: 0.5, borderRadius: '20px', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.07em', bgcolor: fmt.bg, color: fmt.color, border: `1px solid ${fmt.border}` }}>
+                    <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: fmt.color, flexShrink: 0 }} />
+                    {fmt.label}
+                  </Box>
+                )
+              })()}
+              {(ch.ingest_point_id || ch.ingest_point_name) && (
+                <Tooltip title={ch.ingest_point_id ? `ID: ${ch.ingest_point_id}` : ''}>
+                  <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, px: 1.25, py: 0.5, borderRadius: '20px', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.07em', bgcolor: AP.accentDim, color: AP.accent, border: `1px solid ${AP.accentBdr}` }}>
+                    <VpnKeyIcon sx={{ fontSize: 10 }} />
+                    {ch.ingest_point_name || 'Predefined Ingest'}
+                  </Box>
+                </Tooltip>
+              )}
+            </Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {ch.ingest_url && <CredCard label="Ingest URL" value={ch.ingest_url} field="ingest_url" icon={LinkIcon} />}
+              {ch.ingest_key && <CredCard label="Stream Key" value={ch.ingest_key} field="ingest_key" icon={VpnKeyIcon} />}
+            </Box>
+          </Box>
+        )}
 
         {/* VOD Recording */}
         {ch.enable_live_to_vod && (
-          <>
-            <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
-            <Box>
-              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.09em', color: AP.muted, mb: 0.75, textTransform: 'uppercase' }}>Recording</Typography>
-              <Row label="VOD ID" value={ch.vod_media_id || 'Processing…'} field={ch.vod_media_id ? 'vod_id' : null} mono />
-              {vodDaysLeft !== null && <Row label="Expires" value={`${vodDaysLeft} day${vodDaysLeft !== 1 ? 's' : ''} remaining`} />}
+          <Box>
+            <SectionLabel>Recording</SectionLabel>
+            <Box sx={{ border: `1px solid ${AP.liveBdr}`, borderRadius: 2, bgcolor: AP.liveDim, px: 2, py: 1.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  <DownloadIcon sx={{ fontSize: 14, color: AP.live }} />
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: AP.live }}>VOD Recording</Typography>
+                </Box>
+                {vodDaysLeft !== null && <Typography sx={{ fontSize: '0.65rem', color: AP.muted }}>{vodDaysLeft}d remaining</Typography>}
+              </Box>
+              <Typography sx={{ fontFamily: 'monospace', fontSize: '0.73rem', color: ch.vod_media_id ? '#e2e8f0' : AP.muted, wordBreak: 'break-all' }}>
+                {ch.vod_media_id || 'Processing…'}
+              </Typography>
             </Box>
-          </>
+          </Box>
         )}
       </Box>
 
-      {/* Footer actions */}
-      <Box sx={{ px: 2.5, py: 2, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', gap: 1, flexShrink: 0 }}>
+      {/* ── Footer ── */}
+      <Box sx={{ px: 2.5, py: 2, borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: 1, flexShrink: 0, bgcolor: 'rgba(0,0,0,0.25)' }}>
         {ch.stream_url && (
-          <Button size="small" variant="outlined" startIcon={<PlayArrowIcon sx={{ fontSize: '14px !important' }} />}
+          <Button size="small" variant="contained" startIcon={<PlayArrowIcon sx={{ fontSize: '15px !important' }} />}
             onClick={() => { onPreview(ch); onClose() }}
-            sx={{ fontSize: '0.72rem', borderColor: AP.accentBdr, color: AP.accent, '&:hover': { borderColor: AP.accent } }}
-          >
-            Preview
-          </Button>
+            sx={{ fontSize: '0.72rem', fontWeight: 600, bgcolor: AP.accentDim, color: AP.accent, border: `1px solid ${AP.accentBdr}`, boxShadow: 'none', '&:hover': { bgcolor: AP.accent, color: '#fff', boxShadow: 'none' } }}
+          >Preview</Button>
         )}
         {ch.enable_live_to_vod && vodUrl && (
-          <Button size="small" variant="outlined" startIcon={<DownloadIcon sx={{ fontSize: '14px !important' }} />}
+          <Button size="small" variant="contained" startIcon={<DownloadIcon sx={{ fontSize: '15px !important' }} />}
             component="a" href={vodUrl} download={`${ch.name}.mp4`}
-            sx={{ fontSize: '0.72rem', borderColor: AP.liveBdr, color: AP.live, '&:hover': { borderColor: AP.live } }}
-          >
-            Download {vodDaysLeft !== null ? `(${vodDaysLeft}d)` : ''}
-          </Button>
+            sx={{ fontSize: '0.72rem', fontWeight: 600, bgcolor: AP.liveDim, color: AP.live, border: `1px solid ${AP.liveBdr}`, boxShadow: 'none', '&:hover': { bgcolor: AP.live, color: '#fff', boxShadow: 'none' } }}
+          >Download{vodDaysLeft !== null ? ` · ${vodDaysLeft}d` : ''}</Button>
         )}
         <Box sx={{ flex: 1 }} />
-        <Button size="small" variant="outlined" startIcon={<DeleteIcon sx={{ fontSize: '14px !important' }} />}
+        <Button size="small" variant="contained" startIcon={<DeleteIcon sx={{ fontSize: '15px !important' }} />}
           onClick={() => { onDelete(ch.id, ch.name); onClose() }}
-          sx={{ fontSize: '0.72rem', borderColor: 'rgba(239,68,68,0.4)', color: '#f87171', '&:hover': { borderColor: '#f87171', bgcolor: 'rgba(239,68,68,0.08)' } }}
-        >
-          Delete
-        </Button>
+          sx={{ fontSize: '0.72rem', fontWeight: 600, bgcolor: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)', boxShadow: 'none', '&:hover': { bgcolor: 'rgba(239,68,68,0.2)', boxShadow: 'none' } }}
+        >Delete</Button>
       </Box>
     </Drawer>
   )
@@ -1300,7 +1397,7 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
                     <Typography sx={sectionLabel}>START ({tzLabel})</Typography>
                     <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
                       <TextField type="date" size="small" fullWidth label="Date"
-                        value={startDate} onChange={e => setStartDate(e.target.value)}
+                        value={startDate} onChange={e => { setStartDate(e.target.value); setEndDate(e.target.value) }}
                         onBlur={() => setStartTimeTouched(true)}
                         InputLabelProps={{ shrink: true }}
                       />

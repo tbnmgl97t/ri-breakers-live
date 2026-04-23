@@ -35,7 +35,10 @@ export default async function handler(req, res) {
     }
 
     const payload = {
-      metadata: { title },
+      metadata: {
+        title,
+        ...(streamType === 'event' && { custom_params: { contentType: 'liveEvent' } }),
+      },
       ingest_format,
       region,
       options: {
@@ -76,6 +79,23 @@ export default async function handler(req, res) {
     }
 
     const data = JSON.parse(bodyText)
+
+    // PATCH linked media item with custom_params (JW ignores custom_params on stream itself)
+    if (streamType === 'event' && data.id) {
+      try {
+        await fetch(
+          `https://api.jwplayer.com/v2/sites/${SITE_ID}/media/${data.id}/`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: API_SECRET,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ metadata: { custom_params: { contentType: 'liveEvent' } } }),
+          }
+        )
+      } catch (_) { /* non-fatal */ }
+    }
 
     // VOD expiry: 10 days from now (stored for dashboard tracking)
     const vodExpiresAt = downloadable
