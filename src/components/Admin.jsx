@@ -1960,6 +1960,7 @@ function Dashboard({ token, onLogout }) {
   const [pickerDialog, setPickerDialog] = useState({ open: false, slot: null, day: null, tournamentId: null })
   const [createStreamOpen, setCreateStreamOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [streamFilter, setStreamFilter] = useState('all')
   const [previewDialog, setPreviewDialog] = useState({ open: false, channelName: '', streamUrl: '' })
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' })
 
@@ -2305,9 +2306,26 @@ function Dashboard({ token, onLogout }) {
                 borderBottom: '1px solid rgba(255,255,255,0.07)',
                 background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
               }}>
-                <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
-                  LIVE STREAMS
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
+                    LIVE STREAMS
+                  </Typography>
+                  <Box component="select"
+                    value={streamFilter}
+                    onChange={e => setStreamFilter(e.target.value)}
+                    sx={{
+                      bgcolor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: 1, color: AP.muted, fontSize: '0.7rem', px: 1, py: 0.4,
+                      cursor: 'pointer', outline: 'none',
+                      '&:hover': { borderColor: 'rgba(255,255,255,0.25)' },
+                    }}
+                  >
+                    <option value="all">All</option>
+                    <option value="live">Live</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="past">Past</option>
+                  </Box>
+                </Box>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                   <Tooltip title="Refresh channels">
                     <IconButton size="small" onClick={fetchChannels} sx={{ color: '#a8bcd4' }}>
@@ -2353,69 +2371,95 @@ function Dashboard({ token, onLogout }) {
                   </TableHead>
                   <TableBody>
                     {(() => {
-                      const STATUS_LABELS = {
-                        requested:  'Scheduled',
-                        scheduled:  'Scheduled',
-                        creating:   'Creating',
-                        active:     'Live',
-                        idle:       'Past',
-                        stopping:   'Stopping',
-                        destroying: 'Destroying',
+                      // ── Status label + color config ──────────────────────────
+                      const STATUS_CFG = {
+                        active:     { label: 'Live',      bg: 'rgba(16,185,129,0.15)',  color: '#10b981', border: 'rgba(16,185,129,0.4)'  },
+                        requested:  { label: 'Scheduled', bg: 'rgba(99,102,241,0.15)',  color: '#818cf8', border: 'rgba(99,102,241,0.4)'  },
+                        scheduled:  { label: 'Scheduled', bg: 'rgba(99,102,241,0.15)',  color: '#818cf8', border: 'rgba(99,102,241,0.4)'  },
+                        creating:   { label: 'Creating',  bg: 'rgba(245,158,11,0.15)',  color: '#f59e0b', border: 'rgba(245,158,11,0.4)'  },
+                        idle:       { label: 'Past',      bg: 'rgba(100,116,139,0.15)', color: '#94a3b8', border: 'rgba(100,116,139,0.4)' },
+                        stopping:   { label: 'Stopping',  bg: 'rgba(239,68,68,0.12)',   color: '#f87171', border: 'rgba(239,68,68,0.35)'  },
+                        destroying: { label: 'Past',      bg: 'rgba(100,116,139,0.15)', color: '#94a3b8', border: 'rgba(100,116,139,0.4)' },
                       }
+
+                      // ── Sort helper (newest first) ───────────────────────────
                       const sortByStart = (a, b) => {
                         if (!a.stream_start && !b.stream_start) return (a.name || '').localeCompare(b.name || '')
                         if (!a.stream_start) return 1
                         if (!b.stream_start) return -1
-                        const timeDiff = new Date(b.stream_start) - new Date(a.stream_start)
-                        return timeDiff !== 0 ? timeDiff : (a.name || '').localeCompare(b.name || '')
+                        const d = new Date(b.stream_start) - new Date(a.stream_start)
+                        return d !== 0 ? d : (a.name || '').localeCompare(b.name || '')
                       }
-                      const live      = channels.filter(ch => ch.status === 'active').sort(sortByStart)
-                      const scheduled = channels.filter(ch => ['requested','scheduled','creating'].includes(ch.status?.toLowerCase())).sort(sortByStart)
-                      const jwPast    = channels.filter(ch => ['idle','stopping','destroying'].includes(ch.status?.toLowerCase()))
 
-                      // Supplement with channels from CDN records not returned by JW API
+                      // ── Enrich CDN-only channels with tournament day times ───
                       const jwIds = new Set(channels.map(ch => ch.id))
                       const cdnChannelMap = {}
                       cdnRecords.forEach(r => {
                         if (!r.channel_id || jwIds.has(r.channel_id)) return
                         const existing = cdnChannelMap[r.channel_id]
-                        // Keep the most recent date entry per channel
-                        if (!existing || r.date > existing.date) {
-                          cdnChannelMap[r.channel_id] = r
+                        if (!existing || r.date > existing.date) cdnChannelMap[r.channel_id] = r
+                      })
+
+                      // Helper: parse "8:00 AM" → decimal hours
+                      const parseHr = t => {
+                        if (!t) return null
+                        const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+                        if (!m) return null
+                        let h = parseInt(m[1]); const min = parseInt(m[2]); const ap = m[3].toUpperCase()
+                        if (ap === 'PM' && h !== 12) h += 12
+                        if (ap === 'AM' && h === 12) h = 0
+                        return h + min / 60
+                      }
+                      // Helper: combine date string + time string into UTC ISO
+                      const toIso = (date, timeStr) => {
+                        const hr = parseHr(timeStr)
+                        if (!date || hr === null) return null
+                        const d = new Date(date + 'T00:00:00')
+                        d.setHours(Math.floor(hr), Math.round((hr % 1) * 60))
+                        return d.toISOString()
+                      }
+
+                      const syntheticPast = Object.values(cdnChannelMap).map(r => {
+                        // Find the tournament day that matches this channel + date
+                        let dayStart = null, dayEnd = null
+                        for (const t of tournaments) {
+                          for (const d of (t.days || [])) {
+                            if (d.date !== r.date) continue
+                            const urls = [d.camera1_url, d.camera2_url].filter(Boolean)
+                            if (urls.some(u => u.includes(r.channel_id))) {
+                              dayStart = toIso(d.date, d.start_time)
+                              dayEnd   = toIso(d.date, d.end_time)
+                              break
+                            }
+                          }
+                          if (dayStart) break
+                        }
+                        return {
+                          id:           r.channel_id,
+                          name:         r.channel_name,
+                          status:       'idle',
+                          stream_type:  null,
+                          stream_url:   null,
+                          stream_start: dayStart || (r.date ? `${r.date}T00:00:00` : null),
+                          stream_end:   dayEnd,
+                          ingest_url:   null,
+                          ingest_key:   null,
+                          _fromCdn:     true,
                         }
                       })
-                      const syntheticPast = Object.values(cdnChannelMap).map(r => ({
-                        id:           r.channel_id,
-                        name:         r.channel_name,
-                        status:       'idle',
-                        stream_type:  null,
-                        stream_url:   null,
-                        stream_start: r.date ? `${r.date}T00:00:00` : null,
-                        stream_end:   null,
-                        ingest_url:   null,
-                        ingest_key:   null,
-                        _fromCdn:     true,
-                      }))
-                      const past = [...jwPast, ...syntheticPast].sort(sortByStart)
 
-                      const sectionLabel = (label, count) => (
-                        <TableRow key={`sec-${label}`}>
-                          <TableCell colSpan={7} sx={{
-                            pt: 1.5, pb: 0.5, px: 2,
-                            borderBottom: '1px solid rgba(255,255,255,0.05)',
-                            bgcolor: 'transparent',
-                          }}>
-                            <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', color: AP.muted }}>
-                              {label} <Box component="span" sx={{ ml: 0.5, opacity: 0.5 }}>({count})</Box>
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      )
+                      // ── Build full list and apply filter ─────────────────────
+                      const allChannels = [...channels, ...syntheticPast].sort(sortByStart)
+                      const filterGroup = ch => {
+                        const s = ch.status?.toLowerCase()
+                        if (streamFilter === 'live')      return s === 'active'
+                        if (streamFilter === 'scheduled') return ['requested','scheduled','creating'].includes(s)
+                        if (streamFilter === 'past')      return ['idle','stopping','destroying'].includes(s)
+                        return true
+                      }
+                      const visibleChannels = allChannels.filter(filterGroup)
 
-                      const renderRow = ch => {
-                      const isLive = ch.status === 'active'
-                      const statusLabel  = STATUS_LABELS[ch.status?.toLowerCase()] || ch.status || 'Idle'
-                      const spinupStatus = getSpinupStatus(ch)
+                      // ── Format timestamps ────────────────────────────────────
                       const fmtTime = iso => {
                         if (!iso) return '—'
                         return new Date(iso).toLocaleString('en-US', {
@@ -2423,8 +2467,22 @@ function Dashboard({ token, onLogout }) {
                           timeZone: 'America/New_York', timeZoneName: 'short',
                         })
                       }
-                      return (
-                        <TableRow key={ch.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
+
+                      if (visibleChannels.length === 0) return (
+                        <TableRow>
+                          <TableCell colSpan={7} sx={{ textAlign: 'center', py: 3 }}>
+                            <Typography variant="body2" sx={{ color: AP.muted, fontStyle: 'italic' }}>
+                              No streams match the selected filter.
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      )
+
+                      return visibleChannels.map(ch => {
+                        const cfg          = STATUS_CFG[ch.status?.toLowerCase()] || STATUS_CFG.idle
+                        const spinupStatus = getSpinupStatus(ch)
+                        return (
+                        <TableRow key={ch.id + (ch._fromCdn ? '-cdn' : '')} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>{ch.name}</Typography>
                             <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontFamily: 'monospace', fontSize: '0.62rem' }}>
@@ -2434,12 +2492,12 @@ function Dashboard({ token, onLogout }) {
                           <TableCell>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
                               <Chip
-                                label={statusLabel}
+                                label={cfg.label}
                                 size="small"
                                 sx={{
                                   height: 18, fontSize: '0.6rem', fontWeight: 700,
-                                  bgcolor: isLive ? AP.liveDim : ch.status === 'requested' ? 'rgba(33,150,243,0.15)' : 'rgba(255,255,255,0.06)',
-                                  color:  isLive ? AP.live    : ch.status === 'requested' ? '#64b5f6'                : AP.muted,
+                                  bgcolor: cfg.bg, color: cfg.color,
+                                  border: `1px solid ${cfg.border}`,
                                 }}
                               />
                               {spinupStatus === 'starting_soon' && (
@@ -2451,14 +2509,10 @@ function Dashboard({ token, onLogout }) {
                             </Box>
                           </TableCell>
                           <TableCell>
-                            <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>
-                              {ch._fromCdn
-                                ? new Date(ch.stream_start + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                                : fmtTime(ch.stream_start)}
-                            </Typography>
+                            <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{fmtTime(ch.stream_start)}</Typography>
                           </TableCell>
                           <TableCell>
-                            <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{ch._fromCdn ? '—' : fmtTime(ch.stream_end)}</Typography>
+                            <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{fmtTime(ch.stream_end)}</Typography>
                           </TableCell>
                           <TableCell>
                             {ch.stream_url
@@ -2520,13 +2574,7 @@ function Dashboard({ token, onLogout }) {
                           </TableCell>
                         </TableRow>
                       )
-                      }
-
-                      return [
-                        live.length > 0      && [sectionLabel('LIVE', live.length),      ...live.map(renderRow)],
-                        scheduled.length > 0 && [sectionLabel('SCHEDULED', scheduled.length), ...scheduled.map(renderRow)],
-                        past.length > 0      && [sectionLabel('PAST', past.length),       ...past.map(renderRow)],
-                      ]
+                      })
                     })()}
                   </TableBody>
                 </Table>
