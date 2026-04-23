@@ -1104,6 +1104,8 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
                 </Box>
               </Box>
 
+              <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+
               {/* ── Stream Name ────────────────────────────────── */}
               <TextField
                 fullWidth size="small" label="Stream Name" autoFocus
@@ -1145,9 +1147,7 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
                           ? (minutesUntilStart < 0
                               ? `${Math.abs(Math.round(minutesUntilStart))} min in the past`
                               : `Only ${Math.round(minutesUntilStart)} min away — need 15+`)
-                          : (startDate && startTime && startUtcIso
-                              ? `UTC: ${new Date(startUtcIso).toUTCString().replace(' GMT', ' UTC')}`
-                              : null)
+                          : null
                         }
                       />
                     </Box>
@@ -1168,12 +1168,11 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
                       <TextField type="time" size="small" fullWidth label="Time"
                         value={endTime} onChange={e => setEndTime(e.target.value)}
                         InputLabelProps={{ shrink: true }}
-                        helperText={endDate && endTime && toUtcIso(endDate, fromTimeInput(endTime))
-                          ? `UTC: ${new Date(toUtcIso(endDate, fromTimeInput(endTime))).toUTCString().replace(' GMT', ' UTC')}`
-                          : null}
                       />
                     </Box>
                   </Box>
+
+                  <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
                 </>
               )}
 
