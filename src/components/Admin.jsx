@@ -1017,9 +1017,11 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
   const tzLabel = 'ET'
   const startAMPM    = fromTimeInput(startTime)
   const startUtcIso  = channelType === 'live_event' ? toUtcIso(startDate, startAMPM) : null
+  const endUtcIso    = channelType === 'live_event' ? toUtcIso(endDate, fromTimeInput(endTime)) : null
   const minutesUntilStart = startUtcIso ? (new Date(startUtcIso) - Date.now()) / 60_000 : null
-  const tooSoon = minutesUntilStart !== null && minutesUntilStart < 15
-  const isValid = title && (channelType === 'always_on' || (startDate && startTime && !tooSoon))
+  const tooSoon          = minutesUntilStart !== null && minutesUntilStart < 15
+  const endNotAfterStart = startUtcIso && endUtcIso && new Date(endUtcIso) <= new Date(startUtcIso)
+  const isValid = title && (channelType === 'always_on' || (startDate && startTime && endDate && endTime && !tooSoon && !endNotAfterStart))
   const sectionLabel = { color: '#cbd5e1', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.09em', mb: 0.75 }
 
   // Helper to render a copyable URL / key row in the result card
@@ -1164,12 +1166,19 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
                       <TextField type="date" size="small" fullWidth label="Date"
                         value={endDate} onChange={e => setEndDate(e.target.value)}
                         InputLabelProps={{ shrink: true }}
+                        error={!!endNotAfterStart}
                       />
                       <TextField type="time" size="small" fullWidth label="Time"
                         value={endTime} onChange={e => setEndTime(e.target.value)}
                         InputLabelProps={{ shrink: true }}
+                        error={!!endNotAfterStart}
                       />
                     </Box>
+                    {endNotAfterStart && (
+                      <Alert severity="warning" sx={{ mt: 1, fontSize: '0.78rem', py: 0.5 }}>
+                        End time must be after the start time.
+                      </Alert>
+                    )}
                   </Box>
 
                   <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
