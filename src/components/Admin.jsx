@@ -1003,7 +1003,7 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
 // ─── Tournament card (with collapsible days table) ────────────────────────────
 
 function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEditDay, onDeleteDay, onOpenPicker, onEditTournament, onDeleteTournament }) { // eslint-disable-line no-unused-vars
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
 
   const dateRange = getTournamentDateRange(tournament)
 
@@ -1091,7 +1091,6 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
               <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)' } }}>
                 <TableCell>SESSION</TableCell>
                 <TableCell>DATE</TableCell>
-                <TableCell>TIME</TableCell>
                 <TableCell>STREAMS</TableCell>
                 <TableCell align="right" />
               </TableRow>
@@ -1105,9 +1104,7 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
                     <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff' }}>{day.label}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{formatDate(day.date)}</Typography>
-                  </TableCell>
-                  <TableCell>
+                    <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600, display: 'block' }}>{formatDate(day.date)}</Typography>
                     <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{day.start_time} – {day.end_time} {/^E[DS]T$/.test(day.tz) ? 'ET' : (day.tz || 'ET')}</Typography>
                   </TableCell>
 
@@ -2552,7 +2549,7 @@ function Dashboard({ token, onLogout }) {
                     <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)' } }}>
                       <TableCell>CHANNEL</TableCell>
                       <TableCell>STATUS</TableCell>
-                      <TableCell>WINDOW</TableCell>
+                      <TableCell>DATE</TableCell>
                       <TableCell>STREAM / INGEST</TableCell>
                       <TableCell />
                     </TableRow>
