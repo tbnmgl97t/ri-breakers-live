@@ -2652,10 +2652,11 @@ function Dashboard({ token, onLogout }) {
                       // ── Format timestamps ────────────────────────────────────
                       const fmtTime = iso => {
                         if (!iso) return '—'
-                        return new Date(iso).toLocaleString('en-US', {
+                        const s = new Date(iso).toLocaleString('en-US', {
                           month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-                          timeZone: 'America/New_York', timeZoneName: 'short',
+                          timeZone: 'America/New_York',
                         })
+                        return `${s} ET`
                       }
 
                       if (visibleChannels.length === 0) return (
