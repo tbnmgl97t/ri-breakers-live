@@ -920,6 +920,8 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
   const [result, setResult]   = useState(null)
   const [copiedField, setCopiedField] = useState(null)
   const [pricing, setPricing] = useState(null)   // fetched from /api/pricing
+  const [startTimeTouched, setStartTimeTouched] = useState(false)
+  const [endTimeTouched,   setEndTimeTouched]   = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -937,6 +939,8 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
     setError('')
     setResult(null)
     setCopiedField(null)
+    setStartTimeTouched(false)
+    setEndTimeTouched(false)
     loadIngestPoints('rtmp')
     // Fetch live pricing rates (public endpoint, no auth needed)
     fetch('/api/pricing')
@@ -1029,9 +1033,12 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
   const startUtcIso  = channelType === 'live_event' ? toUtcIso(startDate, startAMPM) : null
   const endUtcIso    = channelType === 'live_event' ? toUtcIso(endDate, fromTimeInput(endTime)) : null
   const minutesUntilStart = startUtcIso ? (new Date(startUtcIso) - Date.now()) / 60_000 : null
-  const tooSoon          = minutesUntilStart !== null && minutesUntilStart < 15
-  const endNotAfterStart = startUtcIso && endUtcIso && new Date(endUtcIso) <= new Date(startUtcIso)
-  const isValid = title && (channelType === 'always_on' || (startDate && startTime && endDate && endTime && !tooSoon && !endNotAfterStart))
+  const tooSoonRaw       = minutesUntilStart !== null && minutesUntilStart < 15
+  const endBeforeStartRaw = startUtcIso && endUtcIso && new Date(endUtcIso) <= new Date(startUtcIso)
+  // Only show errors after user has blurred the field
+  const tooSoon          = tooSoonRaw && startTimeTouched
+  const endNotAfterStart = endBeforeStartRaw && endTimeTouched
+  const isValid = title && (channelType === 'always_on' || (startDate && startTime && endDate && endTime && !tooSoonRaw && !endBeforeStartRaw))
   const sectionLabel = { color: '#cbd5e1', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.09em', mb: 0.75 }
 
   // Helper to render a copyable URL / key row in the result card
@@ -1146,49 +1153,45 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
                 <>
                   <Box>
                     <Typography sx={sectionLabel}>START ({tzLabel})</Typography>
-                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                    <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
                       <TextField type="date" size="small" fullWidth label="Date"
                         value={startDate} onChange={e => setStartDate(e.target.value)}
+                        onBlur={() => setStartTimeTouched(true)}
                         InputLabelProps={{ shrink: true }}
                       />
                       <TextField type="time" size="small" fullWidth label="Time"
                         value={startTime} onChange={e => setStartTime(e.target.value)}
+                        onBlur={() => setStartTimeTouched(true)}
                         InputLabelProps={{ shrink: true }}
                         error={tooSoon}
                         helperText={tooSoon
                           ? (minutesUntilStart < 0
                               ? `${Math.abs(Math.round(minutesUntilStart))} min in the past`
-                              : `Only ${Math.round(minutesUntilStart)} min away — need 15+`)
-                          : null
+                              : `Must be 15+ min from now`)
+                          : ' '
                         }
                       />
                     </Box>
-                    {tooSoon && (
-                      <Alert severity="warning" sx={{ mt: 1, fontSize: '0.78rem', py: 0.5 }}>
-                        Start time must be at least 15 minutes from now.
-                      </Alert>
-                    )}
                   </Box>
 
                   <Box>
                     <Typography sx={sectionLabel}>END ({tzLabel})</Typography>
-                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                    <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
                       <TextField type="date" size="small" fullWidth label="Date"
                         value={endDate} onChange={e => setEndDate(e.target.value)}
+                        onBlur={() => setEndTimeTouched(true)}
                         InputLabelProps={{ shrink: true }}
                         error={!!endNotAfterStart}
+                        helperText={endNotAfterStart ? ' ' : ' '}
                       />
                       <TextField type="time" size="small" fullWidth label="Time"
                         value={endTime} onChange={e => setEndTime(e.target.value)}
+                        onBlur={() => setEndTimeTouched(true)}
                         InputLabelProps={{ shrink: true }}
                         error={!!endNotAfterStart}
+                        helperText={endNotAfterStart ? 'Must be after start time' : ' '}
                       />
                     </Box>
-                    {endNotAfterStart && (
-                      <Alert severity="warning" sx={{ mt: 1, fontSize: '0.78rem', py: 0.5 }}>
-                        End time must be after the start time.
-                      </Alert>
-                    )}
                   </Box>
 
                   <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
