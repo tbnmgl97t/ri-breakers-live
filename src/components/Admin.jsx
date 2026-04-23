@@ -465,7 +465,7 @@ function EventDrawer({ open, initial, onClose, onSave }) {
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}
-      PaperProps={{ sx: { width: 560, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)' } }}
+      PaperProps={{ sx: { width: 560, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)', overflow: 'hidden' } }}
     >
       <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* Header */}
@@ -657,7 +657,7 @@ function SessionDrawer({ open, initial, tournament, channels, onClose, onSaved, 
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}
-      PaperProps={{ sx: { width: 520, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)' } }}
+      PaperProps={{ sx: { width: 520, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)', overflow: 'hidden' } }}
     >
       <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%', overflow: 'auto' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1047,7 +1047,7 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}
-      PaperProps={{ sx: { width: 520, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)' } }}
+      PaperProps={{ sx: { width: 520, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)', overflow: 'hidden' } }}
     >
       <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%' }}>
         {/* Header */}
