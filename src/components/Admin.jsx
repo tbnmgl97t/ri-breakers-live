@@ -1249,55 +1249,56 @@ function TournamentCostCard({ tournament, cdnRecords = [] }) {
                         </TableCell>
                       </TableRow>
 
-                      {/* ── Expanded feed rows ── */}
-                      {dayOpen && (
-                        <TableRow sx={{ '& td': { p: 0, borderColor: 'rgba(255,255,255,0.05)' } }}>
-                          <TableCell colSpan={8} sx={{ bgcolor: 'rgba(0,0,0,0.2)' }}>
-                            {dayFeeds.length === 0 ? (
-                              <Box sx={{ px: 4, py: 1.5 }}>
-                                <Typography variant="caption" sx={{ color: AP.muted, fontStyle: 'italic', fontSize: '0.75rem' }}>
-                                  No feeds logged for this day yet.
-                                </Typography>
-                              </Box>
-                            ) : (
-                              <Table size="small">
-                                <TableHead>
-                                  <TableRow sx={{ '& th': { color: 'rgba(168,188,212,0.5)', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.04)', pl: 4 } }}>
-                                    <TableCell sx={{ pl: '40px !important' }}>FEED</TableCell>
-                                    <TableCell>STREAM HRS</TableCell>
-                                    <TableCell>GB DEL</TableCell>
-                                    <TableCell>FEED FEE</TableCell>
-                                    <TableCell>CDN COST</TableCell>
-                                    <TableCell>TOTAL</TableCell>
-                                    <TableCell>MINS DEL</TableCell>
-                                  </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                  {dayFeeds.map(f => (
-                                    <TableRow key={f.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.04)', py: 1 }, '&:last-child td': { borderBottom: 0 } }}>
-                                      <TableCell sx={{ pl: '40px !important' }}>
-                                        <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: AP.text }}>{f.channel_name}</Typography>
-                                        <Typography sx={{ fontSize: '0.62rem', color: AP.muted, fontFamily: 'monospace' }}>{f.channel_id}</Typography>
-                                      </TableCell>
-                                      <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{Number(f.stream_hours).toFixed(2)}h</TableCell>
-                                      <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{Number(f.minutes_delivered) > 0 ? fmtGB(f.gb_delivered) : '—'}</TableCell>
-                                      <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{fmtUSD(f.cost_feed)}</TableCell>
-                                      <TableCell sx={{ fontSize: '0.75rem' }}>
-                                        {Number(f.minutes_delivered) > 0
-                                          ? <span style={{ color: AP.muted }}>{fmtUSD(f.cost_cdn)}</span>
-                                          : <Chip label="Pending" size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)' }} />
-                                        }
-                                      </TableCell>
-                                      <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: AP.accent }}>{fmtUSD(f.cost_total)}</TableCell>
-                                      <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{Number(f.minutes_delivered) > 0 ? Number(f.minutes_delivered).toLocaleString() : '—'}</TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            )}
+                      {/* ── Expanded feed rows (same columns as day row) ── */}
+                      {dayOpen && (dayFeeds.length === 0 ? (
+                        <TableRow sx={{ '& td': { borderColor: 'rgba(255,255,255,0.04)', bgcolor: 'rgba(0,0,0,0.15)' } }}>
+                          <TableCell colSpan={8} sx={{ pl: 5, py: 1.5 }}>
+                            <Typography variant="caption" sx={{ color: AP.muted, fontStyle: 'italic', fontSize: '0.75rem' }}>
+                              No feeds logged for this day yet.
+                            </Typography>
                           </TableCell>
                         </TableRow>
-                      )}
+                      ) : dayFeeds.map(f => (
+                        <TableRow key={f.id} sx={{
+                          '& td': { borderColor: 'rgba(255,255,255,0.04)', py: 1, bgcolor: 'rgba(0,0,0,0.15)' },
+                          '&:last-child td': { borderBottom: '1px solid rgba(255,255,255,0.05)' },
+                        }}>
+                          {/* DAY col → feed name indented */}
+                          <TableCell sx={{ pl: 4 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box sx={{ width: 2, height: 28, bgcolor: AP.accentBdr, borderRadius: 1, flexShrink: 0 }} />
+                              <Box>
+                                <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: AP.text }}>{f.channel_name}</Typography>
+                                <Typography sx={{ fontSize: '0.6rem', color: AP.muted, fontFamily: 'monospace' }}>{f.channel_id}</Typography>
+                              </Box>
+                            </Box>
+                          </TableCell>
+                          {/* DATE col → mins delivered */}
+                          <TableCell>
+                            <Typography sx={{ fontSize: '0.7rem', color: AP.muted }}>
+                              {Number(f.minutes_delivered) > 0 ? `${Number(f.minutes_delivered).toLocaleString()} mins` : '—'}
+                            </Typography>
+                          </TableCell>
+                          {/* FEEDS col → empty */}
+                          <TableCell />
+                          {/* STREAM HRS */}
+                          <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{Number(f.stream_hours).toFixed(2)}h</TableCell>
+                          {/* GB DEL */}
+                          <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{Number(f.minutes_delivered) > 0 ? fmtGB(f.gb_delivered) : '—'}</TableCell>
+                          {/* FEED FEE */}
+                          <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{fmtUSD(f.cost_feed)}</TableCell>
+                          {/* CDN COST */}
+                          <TableCell>
+                            {Number(f.minutes_delivered) > 0
+                              ? <Typography sx={{ fontSize: '0.75rem', color: AP.muted }}>{fmtUSD(f.cost_cdn)}</Typography>
+                              : <Chip label="Pending" size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)' }} />
+                            }
+                          </TableCell>
+                          {/* TOTAL */}
+                          <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: AP.accent }}>{fmtUSD(f.cost_total)}</TableCell>
+                        </TableRow>
+                      )))}
+
                     </React.Fragment>
                   )
                 })}
