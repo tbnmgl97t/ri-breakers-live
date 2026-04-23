@@ -1273,10 +1273,10 @@ function TournamentCostCard({ tournament, cdnRecords = [] }) {
                               </Box>
                             </Box>
                           </TableCell>
-                          {/* DATE col → mins delivered */}
+                          {/* DATE col → same date as parent day */}
                           <TableCell>
-                            <Typography sx={{ fontSize: '0.7rem', color: AP.muted }}>
-                              {Number(f.minutes_delivered) > 0 ? `${Number(f.minutes_delivered).toLocaleString()} mins` : '—'}
+                            <Typography sx={{ fontSize: '0.7rem', color: AP.muted, whiteSpace: 'nowrap' }}>
+                              {formatDate(f.date)}
                             </Typography>
                           </TableCell>
                           {/* FEEDS col → empty */}
