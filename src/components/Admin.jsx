@@ -2491,20 +2491,21 @@ function Dashboard({ token, onLogout }) {
                           </TableCell>
                           <TableCell>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
-                              <Chip
-                                label={cfg.label}
-                                size="small"
-                                sx={{
-                                  height: 18, fontSize: '0.6rem', fontWeight: 700,
-                                  bgcolor: cfg.bg, color: cfg.color,
-                                  border: `1px solid ${cfg.border}`,
-                                }}
-                              />
+                              <Box sx={{
+                                display: 'inline-flex', alignItems: 'center', px: '6px',
+                                height: 18, borderRadius: '4px',
+                                fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.04em',
+                                backgroundColor: cfg.bg, color: cfg.color,
+                                border: `1px solid ${cfg.border}`,
+                                lineHeight: 1,
+                              }}>
+                                {cfg.label}
+                              </Box>
                               {spinupStatus === 'starting_soon' && (
-                                <Chip label="Starting Soon" size="small" sx={{ height: 16, fontSize: '0.57rem', fontWeight: 700, bgcolor: AP.warnDim, color: AP.warn }} />
+                                <Box sx={{ display: 'inline-flex', alignItems: 'center', px: '6px', height: 16, borderRadius: '4px', fontSize: '0.57rem', fontWeight: 700, backgroundColor: AP.warnDim, color: AP.warn, border: `1px solid rgba(245,158,11,0.4)`, lineHeight: 1 }}>Starting Soon</Box>
                               )}
                               {spinupStatus === 'winding_down' && (
-                                <Chip label="Winding Down" size="small" sx={{ height: 16, fontSize: '0.57rem', fontWeight: 700, bgcolor: AP.slateDim, color: AP.slate }} />
+                                <Box sx={{ display: 'inline-flex', alignItems: 'center', px: '6px', height: 16, borderRadius: '4px', fontSize: '0.57rem', fontWeight: 700, backgroundColor: AP.slateDim, color: AP.slate, border: `1px solid rgba(100,116,139,0.4)`, lineHeight: 1 }}>Winding Down</Box>
                               )}
                             </Box>
                           </TableCell>
