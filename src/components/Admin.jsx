@@ -423,11 +423,11 @@ function EventDrawer({ open, initial, onClose, onSave }) {
     }
   }
 
-  const sectionLabel = { fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', color: AP.muted, mb: 0.75 }
+  const sectionLabel = { fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', color: '#cbd5e1', mb: 0.75 }
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}
-      PaperProps={{ sx: { width: 560, bgcolor: '#0d1117', borderLeft: '1px solid rgba(255,255,255,0.07)' } }}
+      PaperProps={{ sx: { width: 560, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)' } }}
     >
       <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* Header */}
@@ -453,7 +453,7 @@ function EventDrawer({ open, initial, onClose, onSave }) {
             </Box>
           </Box>
 
-          <Divider sx={{ borderColor: 'rgba(255,255,255,0.07)' }} />
+          <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)' }} />
 
           {/* Sessions */}
           <Box>
@@ -466,7 +466,7 @@ function EventDrawer({ open, initial, onClose, onSave }) {
             </Box>
 
             {sessions.length === 0 && (
-              <Box sx={{ textAlign: 'center', py: 3, border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 1.5 }}>
+              <Box sx={{ textAlign: 'center', py: 3, border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 1.5 }}>
                 <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)' }}>
                   No sessions yet — click Add Session to build out the schedule
                 </Typography>
@@ -477,7 +477,7 @@ function EventDrawer({ open, initial, onClose, onSave }) {
               {sessions.map((sess, sIdx) => {
                 const isOpen = expandedIdx === sIdx
                 return (
-                  <Box key={sess._key} sx={{ border: `1px solid ${isOpen ? AP.accentBdr : 'rgba(255,255,255,0.09)'}`, borderRadius: 1.5, overflow: 'hidden', transition: 'border-color 0.15s' }}>
+                  <Box key={sess._key} sx={{ border: `1px solid ${isOpen ? AP.accentBdr : 'rgba(255,255,255,0.18)'}`, borderRadius: 1.5, overflow: 'hidden', transition: 'border-color 0.15s' }}>
                     {/* Session header row */}
                     <Box
                       onClick={() => setExpandedIdx(isOpen ? null : sIdx)}
@@ -508,7 +508,7 @@ function EventDrawer({ open, initial, onClose, onSave }) {
 
                     {/* Session body */}
                     <Collapse in={isOpen}>
-                      <Box sx={{ px: 1.5, pb: 1.5, pt: 0.5, display: 'flex', flexDirection: 'column', gap: 1.5, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <Box sx={{ px: 1.5, pb: 1.5, pt: 0.5, display: 'flex', flexDirection: 'column', gap: 1.5, borderTop: '1px solid rgba(255,255,255,0.14)' }}>
                         <Box sx={{ display: 'flex', gap: 1.5 }}>
                           <TextField size="small" label="Label" value={sess.label} onChange={e => updateSession(sIdx, 'label', e.target.value)} placeholder="e.g. Day 1" sx={{ flex: 1 }} />
                           <TextField size="small" label="Date" type="date" value={sess.date} onChange={e => updateSession(sIdx, 'date', e.target.value)} InputLabelProps={{ shrink: true }} sx={{ flex: 1 }} />
@@ -524,7 +524,7 @@ function EventDrawer({ open, initial, onClose, onSave }) {
                           <Typography sx={{ ...sectionLabel, mb: 0.5 }}>STREAMS</Typography>
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                             {sess.streams.map((st, stIdx) => (
-                              <Box key={st.id ?? stIdx} sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 1, px: 1, py: 0.75 }}>
+                              <Box key={st.id ?? stIdx} sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 1, px: 1, py: 0.75 }}>
                                 <Typography variant="caption" sx={{ color: AP.muted, fontWeight: 700, minWidth: 18, fontSize: '0.65rem' }}>#{stIdx + 1}</Typography>
                                 <TextField size="small" placeholder="Stream name" value={st.name} onChange={e => updateStream(sIdx, stIdx, 'name', e.target.value)}
                                   sx={{ width: 130, '& input': { fontSize: '0.75rem', py: '4px' }, '& .MuiOutlinedInput-root': { height: 28 } }} />
@@ -552,7 +552,7 @@ function EventDrawer({ open, initial, onClose, onSave }) {
         </Box>
 
         {/* Footer */}
-        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', pt: 2, borderTop: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, mt: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', pt: 2, borderTop: '1px solid rgba(255,255,255,0.15)', flexShrink: 0, mt: 1 }}>
           <Button onClick={onClose} sx={{ color: '#a8bcd4' }}>Cancel</Button>
           <Button onClick={handleSave} disabled={!form.name || saving} variant="contained"
             sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov } }}>
@@ -611,7 +611,7 @@ function SessionDrawer({ open, initial, tournament, channels, onClose, onSaved, 
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}
-      PaperProps={{ sx: { width: 520, bgcolor: '#0d1117', borderLeft: '1px solid rgba(255,255,255,0.07)' } }}
+      PaperProps={{ sx: { width: 520, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)' } }}
     >
       <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%', overflow: 'auto' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -627,7 +627,7 @@ function SessionDrawer({ open, initial, tournament, channels, onClose, onSaved, 
             <CloseIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </Box>
-        <Divider sx={{ borderColor: 'rgba(255,255,255,0.07)' }} />
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)' }} />
 
         <TextField label="Label" value={form.label} onChange={set('label')} size="small" fullWidth autoFocus placeholder="e.g. Day 1" />
         <TextField label="Date" type="date" value={form.date} onChange={set('date')} size="small" fullWidth InputLabelProps={{ shrink: true }} />
@@ -644,7 +644,7 @@ function SessionDrawer({ open, initial, tournament, channels, onClose, onSaved, 
           </Typography>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             {streams.map((st, idx) => (
-              <Box key={st.id ?? idx} sx={{ border: '1px solid rgba(255,255,255,0.09)', borderRadius: 1.5, p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Box key={st.id ?? idx} sx={{ border: '1px solid rgba(255,255,255,0.18)', borderRadius: 1.5, p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography variant="caption" sx={{ color: AP.muted, fontWeight: 700, minWidth: 20 }}>#{idx + 1}</Typography>
                   <TextField
@@ -946,11 +946,11 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
   const minutesUntilStart = startUtcIso ? (new Date(startUtcIso) - Date.now()) / 60_000 : null
   const tooSoon = minutesUntilStart !== null && minutesUntilStart < 15
   const isValid = title && (channelType === 'always_on' || (startDate && !tooSoon))
-  const sectionLabel = { color: '#a8bcd4', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.09em', mb: 0.75 }
+  const sectionLabel = { color: '#cbd5e1', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.09em', mb: 0.75 }
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}
-      PaperProps={{ sx: { width: 520, bgcolor: '#0d1117', borderLeft: '1px solid rgba(255,255,255,0.07)' } }}
+      PaperProps={{ sx: { width: 520, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)' } }}
     >
       <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%' }}>
         {/* Header */}
@@ -1134,7 +1134,7 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
         </Box>{/* end scrollable content */}
 
         {/* Footer */}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, pt: 1.5, borderTop: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, pt: 1.5, borderTop: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }}>
           <Button onClick={onClose} sx={{ color: '#a8bcd4' }}>{result ? 'Close' : 'Cancel'}</Button>
           {!result && (
             <Button
