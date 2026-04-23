@@ -901,6 +901,151 @@ function defaultStreamTimes() {
   return { startDate: etDateVal(start), startTime: etTimeVal(start), endDate: etDateVal(end), endTime: etTimeVal(end) }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Stream Detail Drawer — shows full info when a row is clicked in the list
+// ─────────────────────────────────────────────────────────────────────────────
+function StreamDetailDrawer({ open, channel: ch, onClose, onDelete, onPreview }) {
+  const [copied, setCopied] = useState(null)
+
+  if (!ch) return null
+
+  const copy = (field, text) => {
+    navigator.clipboard.writeText(text)
+    setCopied(field)
+    setTimeout(() => setCopied(null), 1800)
+  }
+
+  const STATUS_CFG = {
+    active:     { label: 'Live',      bg: 'rgba(16,185,129,0.15)',  color: '#10b981', border: 'rgba(16,185,129,0.4)'  },
+    requested:  { label: 'Scheduled', bg: 'rgba(99,102,241,0.15)',  color: '#818cf8', border: 'rgba(99,102,241,0.4)'  },
+    scheduled:  { label: 'Scheduled', bg: 'rgba(99,102,241,0.15)',  color: '#818cf8', border: 'rgba(99,102,241,0.4)'  },
+    creating:   { label: 'Creating',  bg: 'rgba(245,158,11,0.15)',  color: '#f59e0b', border: 'rgba(245,158,11,0.4)'  },
+    idle:       { label: 'Past',      bg: 'rgba(100,116,139,0.15)', color: '#94a3b8', border: 'rgba(100,116,139,0.4)' },
+    stopping:   { label: 'Stopping',  bg: 'rgba(239,68,68,0.12)',   color: '#f87171', border: 'rgba(239,68,68,0.35)'  },
+    destroying: { label: 'Past',      bg: 'rgba(100,116,139,0.15)', color: '#94a3b8', border: 'rgba(100,116,139,0.4)' },
+  }
+  const cfg = STATUS_CFG[ch.status?.toLowerCase()] || STATUS_CFG.idle
+
+  const fmtTime = iso => iso
+    ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })
+    : null
+
+  const vodUrl   = ch.vod_media_id ? `https://cdn.jwplayer.com/videos/${ch.vod_media_id}-720p.mp4` : null
+  const vodDaysLeft = ch.vod_expires_at ? Math.max(0, Math.ceil((new Date(ch.vod_expires_at) - Date.now()) / 86_400_000)) : null
+
+  const Row = ({ label, value, field, mono }) => (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, py: 0.6 }}>
+      <Typography sx={{ fontSize: '0.68rem', color: AP.muted, width: 72, flexShrink: 0, pt: '2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        {label}
+      </Typography>
+      <Typography sx={{ fontSize: '0.78rem', color: '#e2e8f0', fontFamily: mono ? 'monospace' : 'inherit', flex: 1, wordBreak: 'break-all', lineHeight: 1.5 }}>
+        {value || '—'}
+      </Typography>
+      {field && value && (
+        <Tooltip title={copied === field ? 'Copied!' : `Copy ${label}`}>
+          <IconButton size="small" onClick={() => copy(field, value)} sx={{ color: copied === field ? AP.live : AP.muted, p: 0.25, flexShrink: 0 }}>
+            {copied === field ? <CheckCircleIcon sx={{ fontSize: 14 }} /> : <ContentCopyIcon sx={{ fontSize: 14 }} />}
+          </IconButton>
+        </Tooltip>
+      )}
+    </Box>
+  )
+
+  return (
+    <Drawer anchor="right" open={open} onClose={onClose}
+      PaperProps={{ sx: { width: 400, bgcolor: AP.bg, borderLeft: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', overflow: 'hidden' } }}
+    >
+      {/* Header */}
+      <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+          <LiveTvIcon sx={{ color: AP.accent, fontSize: 18, flexShrink: 0 }} />
+          <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {ch.name}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', px: '8px', height: 20, borderRadius: '4px', fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.05em', backgroundColor: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
+            {cfg.label}
+          </Box>
+          <IconButton size="small" onClick={onClose} sx={{ color: AP.muted }}>
+            <CloseIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Box>
+      </Box>
+
+      {/* Scrollable body */}
+      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 2.5, py: 2.5, display: 'flex', flexDirection: 'column', gap: 2, scrollbarGutter: 'stable' }}>
+
+        {/* ID / Type */}
+        <Box>
+          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.09em', color: AP.muted, mb: 0.75, textTransform: 'uppercase' }}>Stream Info</Typography>
+          <Row label="ID"     value={ch.id}          field="id"     mono />
+          <Row label="Type"   value={ch.stream_type === '24/7' ? '24/7 Channel' : ch.stream_type === 'event' ? 'Live Event' : (ch.stream_type || '—')} />
+          <Row label="Status" value={cfg.label} />
+        </Box>
+
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+
+        {/* Time window */}
+        <Box>
+          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.09em', color: AP.muted, mb: 0.75, textTransform: 'uppercase' }}>Schedule (ET)</Typography>
+          <Row label="Start" value={fmtTime(ch.stream_start) || '—'} />
+          <Row label="End"   value={fmtTime(ch.stream_end)   || '—'} />
+        </Box>
+
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+
+        {/* Playback / Ingest */}
+        <Box>
+          <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.09em', color: AP.muted, mb: 0.75, textTransform: 'uppercase' }}>Stream / Ingest</Typography>
+          <Row label="HLS URL"    value={ch.stream_url}  field="stream_url"  mono />
+          <Row label="Ingest URL" value={ch.ingest_url}  field="ingest_url"  mono />
+          <Row label="Stream Key" value={ch.ingest_key}  field="ingest_key"  mono />
+        </Box>
+
+        {/* VOD Recording */}
+        {ch.enable_live_to_vod && (
+          <>
+            <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+            <Box>
+              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.09em', color: AP.muted, mb: 0.75, textTransform: 'uppercase' }}>Recording</Typography>
+              <Row label="VOD ID" value={ch.vod_media_id || 'Processing…'} field={ch.vod_media_id ? 'vod_id' : null} mono />
+              {vodDaysLeft !== null && <Row label="Expires" value={`${vodDaysLeft} day${vodDaysLeft !== 1 ? 's' : ''} remaining`} />}
+            </Box>
+          </>
+        )}
+      </Box>
+
+      {/* Footer actions */}
+      <Box sx={{ px: 2.5, py: 2, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', gap: 1, flexShrink: 0 }}>
+        {ch.stream_url && (
+          <Button size="small" variant="outlined" startIcon={<PlayArrowIcon sx={{ fontSize: '14px !important' }} />}
+            onClick={() => { onPreview(ch); onClose() }}
+            sx={{ fontSize: '0.72rem', borderColor: AP.accentBdr, color: AP.accent, '&:hover': { borderColor: AP.accent } }}
+          >
+            Preview
+          </Button>
+        )}
+        {ch.enable_live_to_vod && vodUrl && (
+          <Button size="small" variant="outlined" startIcon={<DownloadIcon sx={{ fontSize: '14px !important' }} />}
+            component="a" href={vodUrl} download={`${ch.name}.mp4`}
+            sx={{ fontSize: '0.72rem', borderColor: AP.liveBdr, color: AP.live, '&:hover': { borderColor: AP.live } }}
+          >
+            Download {vodDaysLeft !== null ? `(${vodDaysLeft}d)` : ''}
+          </Button>
+        )}
+        <Box sx={{ flex: 1 }} />
+        <Button size="small" variant="outlined" startIcon={<DeleteIcon sx={{ fontSize: '14px !important' }} />}
+          onClick={() => { onDelete(ch.id, ch.name); onClose() }}
+          sx={{ fontSize: '0.72rem', borderColor: 'rgba(239,68,68,0.4)', color: '#f87171', '&:hover': { borderColor: '#f87171', bgcolor: 'rgba(239,68,68,0.08)' } }}
+        >
+          Delete
+        </Button>
+      </Box>
+    </Drawer>
+  )
+}
+
 function CreateStreamDrawer({ open, token, onClose, onCreated }) {
   const [channelType, setChannelType] = useState('live_event')
   const [title, setTitle]             = useState('')
@@ -2478,6 +2623,7 @@ function Dashboard({ token, onLogout }) {
   const [pickerDialog, setPickerDialog] = useState({ open: false, slot: null, day: null, tournamentId: null })
   const [createStreamOpen, setCreateStreamOpen] = useState(false)
   const [createStreamKey, setCreateStreamKey]   = useState(0)
+  const [selectedChannel, setSelectedChannel]   = useState(null)
   const [activeTab, setActiveTab] = useState('dashboard')
   const [dashboardView, setDashboardView] = useState('both')
   const [streamFilter, setStreamFilter] = useState('all')
@@ -2995,8 +3141,6 @@ function Dashboard({ token, onLogout }) {
                       <TableCell>CHANNEL</TableCell>
                       <TableCell>STATUS</TableCell>
                       <TableCell>DATE</TableCell>
-                      <TableCell>STREAM / INGEST</TableCell>
-                      <TableCell />
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -3128,7 +3272,11 @@ function Dashboard({ token, onLogout }) {
                         const cfg          = STATUS_CFG[ch.status?.toLowerCase()] || STATUS_CFG.idle
                         const spinupStatus = getSpinupStatus(ch)
                         return (
-                        <TableRow key={ch.id + (ch._fromCdn ? '-cdn' : '')} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
+                        <TableRow
+                          key={ch.id + (ch._fromCdn ? '-cdn' : '')}
+                          onClick={() => setSelectedChannel(ch)}
+                          sx={{ cursor: 'pointer', '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' } }}
+                        >
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>{ch.name}</Typography>
                             <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontFamily: 'monospace', fontSize: '0.62rem' }}>
@@ -3166,104 +3314,6 @@ function Dashboard({ token, onLogout }) {
                                 </Box>
                               )
                             })()}
-                          </TableCell>
-                          <TableCell>
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                              {ch.stream_url ? (
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                  <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.58rem', width: 26, flexShrink: 0 }}>URL</Typography>
-                                  <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.6rem', wordBreak: 'break-all' }}>{ch.stream_url}</Typography>
-                                </Box>
-                              ) : null}
-                              {ch.ingest_url ? (
-                                <>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.58rem', width: 26, flexShrink: 0 }}>RTMP</Typography>
-                                    <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.6rem', wordBreak: 'break-all' }}>{ch.ingest_url}</Typography>
-                                    <Tooltip title="Copy ingest URL">
-                                      <IconButton size="small" onClick={() => navigator.clipboard.writeText(ch.ingest_url)} sx={{ color: '#a8bcd4', flexShrink: 0, p: 0.25 }}>
-                                        <ContentCopyIcon sx={{ fontSize: 11 }} />
-                                      </IconButton>
-                                    </Tooltip>
-                                  </Box>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.58rem', width: 26, flexShrink: 0 }}>KEY</Typography>
-                                    <Typography variant="caption" sx={{ color: AP.accent, fontFamily: 'monospace', fontSize: '0.6rem' }}>{ch.ingest_key}</Typography>
-                                    <Tooltip title="Copy stream key">
-                                      <IconButton size="small" onClick={() => navigator.clipboard.writeText(ch.ingest_key)} sx={{ color: '#a8bcd4', flexShrink: 0, p: 0.25 }}>
-                                        <ContentCopyIcon sx={{ fontSize: 11 }} />
-                                      </IconButton>
-                                    </Tooltip>
-                                  </Box>
-                                </>
-                              ) : null}
-                              {!ch.stream_url && !ch.ingest_url && (
-                                <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>—</Typography>
-                              )}
-                            </Box>
-                          </TableCell>
-                          <TableCell align="right">
-                            {!ch._fromCdn && (
-                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
-                                {/* VOD download badge — shown for recordings that are downloadable */}
-                                {ch.enable_live_to_vod && (() => {
-                                  const vodUrl = ch.vod_media_id
-                                    ? `https://cdn.jwplayer.com/videos/${ch.vod_media_id}-720p.mp4`
-                                    : null
-                                  const expiresAt = ch.vod_expires_at ? new Date(ch.vod_expires_at) : null
-                                  const daysLeft  = expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 86_400_000)) : null
-                                  return (
-                                    <Tooltip title={vodUrl ? `Download recording (${daysLeft ?? '?'} days left)` : 'Recording being processed…'}>
-                                      <Box
-                                        component={vodUrl ? 'a' : 'div'}
-                                        href={vodUrl || undefined}
-                                        download={vodUrl ? `${ch.name}.mp4` : undefined}
-                                        sx={{
-                                          display: 'inline-flex', alignItems: 'center', gap: 0.5,
-                                          px: 1, py: 0.4, borderRadius: 1,
-                                          bgcolor: vodUrl ? AP.liveDim : 'rgba(255,255,255,0.04)',
-                                          border: `1px solid ${vodUrl ? AP.liveBdr : 'rgba(255,255,255,0.1)'}`,
-                                          color: vodUrl ? AP.live : AP.muted,
-                                          cursor: vodUrl ? 'pointer' : 'default',
-                                          textDecoration: 'none',
-                                          '&:hover': vodUrl ? { bgcolor: 'rgba(16,185,129,0.25)' } : {},
-                                        }}
-                                      >
-                                        <DownloadIcon sx={{ fontSize: 11 }} />
-                                        <Typography sx={{ fontSize: '0.6rem', fontWeight: 700 }}>
-                                          {vodUrl
-                                            ? (daysLeft !== null ? `${daysLeft}d left` : 'Download')
-                                            : 'Processing…'
-                                          }
-                                        </Typography>
-                                      </Box>
-                                    </Tooltip>
-                                  )
-                                })()}
-                                <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                  {ch.stream_url && (
-                                    <Tooltip title="Preview stream (admin only)">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => setPreviewDialog({ open: true, channelName: ch.name, streamUrl: ch.stream_url })}
-                                        sx={{ color: AP.accent, '&:hover': { color: AP.accentHov } }}
-                                      >
-                                        <PlayArrowIcon sx={{ fontSize: 18 }} />
-                                      </IconButton>
-                                    </Tooltip>
-                                  )}
-                                  <Tooltip title="Delete stream">
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => deleteChannel(ch.id, ch.name)}
-                                      sx={{ color: AP.muted, '&:hover': { color: '#f44336' } }}
-                                    >
-                                      <DeleteIcon sx={{ fontSize: 16 }} />
-                                    </IconButton>
-                                  </Tooltip>
-                                </Box>
-                              </Box>
-                            )}
                           </TableCell>
                         </TableRow>
                       )
@@ -3332,6 +3382,13 @@ function Dashboard({ token, onLogout }) {
         channels={channels}
         onClose={() => setPickerDialog({ open: false, slot: null, day: null, tournamentId: null })}
         onPick={picked => assignCamera(pickerDialog.slot, pickerDialog.tournamentId, picked)}
+      />
+      <StreamDetailDrawer
+        open={!!selectedChannel}
+        channel={selectedChannel}
+        onClose={() => setSelectedChannel(null)}
+        onDelete={(id, name) => deleteChannel(id, name)}
+        onPreview={ch => setPreviewDialog({ open: true, channelName: ch.name, streamUrl: ch.stream_url })}
       />
       <CreateStreamDrawer
         key={createStreamKey}
