@@ -896,7 +896,7 @@ const REGIONS = [
 function etDateVal(d) { return d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) }
 function etTimeVal(d) { return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }) }
 function defaultStreamTimes() {
-  const start = new Date(Date.now() + 15 * 60 * 1000)
+  const start = new Date(Date.now() + 20 * 60 * 1000)
   const end   = new Date(start.getTime() + 60 * 60 * 1000)
   return { startDate: etDateVal(start), startTime: etTimeVal(start), endDate: etDateVal(end), endTime: etTimeVal(end) }
 }
