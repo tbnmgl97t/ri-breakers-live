@@ -296,16 +296,21 @@ function LoginScreen({ onLogin }) {
         onSubmit={handleSubmit}
       >
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3, gap: 1 }}>
-          <Box
-            component="img"
-            src="https://ribreakersac.com/cdn/shop/files/RI-Breakers-Logo-WHITE.png?v=1774997726&width=200"
-            alt="RI Breakers"
-            sx={{ width: 64, height: 64, objectFit: 'contain', filter: `drop-shadow(0 0 10px ${AP.accentBdr})` }}
-          />
+          {/* EventHub Live mark */}
+          <Box sx={{
+            width: 56, height: 56, borderRadius: '14px',
+            background: `linear-gradient(135deg, ${AP.accent} 0%, #818cf8 100%)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: `0 0 24px ${AP.accentBdr}`,
+          }}>
+            <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M17 3L7 17h9l-3 10 13-16h-9l3-8z" fill="white" stroke="white" strokeWidth="0.5" strokeLinejoin="round"/>
+            </svg>
+          </Box>
           <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.08em', fontSize: '1.1rem', mt: 0.5 }}>
             ADMIN DASHBOARD
           </Typography>
-          <Typography variant="caption" sx={{ color: '#a8bcd4' }}>Rhode Island Breakers</Typography>
+          <Typography variant="caption" sx={{ color: '#a8bcd4' }}>EventHub Live</Typography>
         </Box>
 
         {error && <Alert severity="error" sx={{ mb: 2, fontSize: '0.8rem' }}>{error}</Alert>}
