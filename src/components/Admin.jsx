@@ -27,6 +27,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import SettingsIcon from '@mui/icons-material/Settings'
 import PaletteIcon from '@mui/icons-material/Palette'
 import CloseIcon from '@mui/icons-material/Close'
+import { useTenant } from '../contexts/TenantContext'
 
 const SESSION_KEY = 'ri_admin_token'
 
