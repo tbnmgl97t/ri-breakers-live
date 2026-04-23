@@ -402,12 +402,161 @@ function OverviewTab({ records, pricing, tournaments }) {
   )
 }
 
+// ─── Log from JW dialog ───────────────────────────────────────────────────────
+// Shows all JW feeds with stream hours pre-filled; only Minutes Delivered is entered.
+
+function LogFromJwDialog({ open, channels, tournaments, pricing, token, onClose, onSaved, showSnack }) {
+  // minutes_delivered keyed by channel id
+  const [minutesMap, setMinutesMap] = useState({})
+  const [tournamentMap, setTournamentMap] = useState({})
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (open) { setMinutesMap({}); setTournamentMap({}) }
+  }, [open])
+
+  // Only show channels that have actually run (have stream_start)
+  const loggable = channels.filter(ch => ch.stream_start)
+
+  function streamHours(ch) {
+    const start = new Date(ch.stream_start)
+    const end   = ch.stream_end ? new Date(ch.stream_end) : new Date()
+    return Math.max(0, (end - start) / 3_600_000)
+  }
+
+  function streamDate(ch) {
+    return new Date(ch.stream_start).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  }
+
+  function previewCost(ch) {
+    const mins  = Number(minutesMap[ch.id]) || 0
+    const hrs   = streamHours(ch)
+    const gbPer = pricing?.gb_per_50_min    ?? 4
+    const fRate = pricing?.feed_rate_per_hr ?? 15
+    const cRate = pricing?.cdn_rate_per_gb  ?? 0.05
+    const gb    = (mins / 50) * gbPer
+    return {
+      feed: hrs  * fRate,
+      cdn:  gb   * cRate,
+      total: (hrs * fRate) + (gb * cRate),
+    }
+  }
+
+  async function handleSave() {
+    const toLog = loggable.filter(ch => minutesMap[ch.id] !== undefined && minutesMap[ch.id] !== '')
+    if (!toLog.length) { showSnack('Enter minutes for at least one feed', 'warning'); return }
+
+    setSaving(true)
+    try {
+      for (const ch of toLog) {
+        const body = {
+          date:              streamDate(ch),
+          label:             ch.name || ch.id,
+          tournament_id:     tournamentMap[ch.id] ? Number(tournamentMap[ch.id]) : null,
+          channel_id:        ch.id,
+          channel_name:      ch.name || ch.id,
+          stream_hours:      parseFloat(streamHours(ch).toFixed(4)),
+          minutes_delivered: Number(minutesMap[ch.id]),
+        }
+        const res = await fetch('/api/cdn-records', {
+          method: 'POST', headers: tdAuthHeader(token), body: JSON.stringify(body),
+        })
+        if (!res.ok) {
+          const d = await res.json()
+          throw new Error(`Failed for ${ch.name}: ${d.error}`)
+        }
+      }
+      showSnack(`Logged ${toLog.length} feed${toLog.length > 1 ? 's' : ''}`)
+      onSaved()
+      onClose()
+    } catch (err) {
+      showSnack(err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md"
+      PaperProps={{ sx: { bgcolor: TP.paper, border: `1px solid ${TP.border}` } }}>
+      <DialogTitle sx={{ borderBottom: `1px solid ${TP.border}`, py: 1.5, px: 2, fontSize: '0.95rem', fontWeight: 700 }}>
+        Log CDN Usage from JW Feeds
+      </DialogTitle>
+      <DialogContent sx={{ pt: 2, pb: 1 }}>
+        <Typography variant="caption" sx={{ color: TP.muted, mb: 2, display: 'block' }}>
+          Stream hours are pulled from JW automatically. Enter <strong>Minutes Delivered</strong> from the JW analytics dashboard for each feed you want to log.
+        </Typography>
+
+        {loggable.length === 0 ? (
+          <Typography sx={{ color: TP.muted, py: 2, textAlign: 'center' }}>No JW feeds with stream data found.</Typography>
+        ) : (
+          <Box sx={{ overflowX: 'auto' }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  {['Feed', 'Date', 'Stream Hrs', 'Tournament', 'Mins Delivered', 'Est. Cost'].map(h => (
+                    <TableCell key={h} sx={{ color: TP.muted, fontSize: '0.7rem', fontWeight: 600 }}>{h}</TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {loggable.map(ch => {
+                  const hrs  = streamHours(ch)
+                  const cost = previewCost(ch)
+                  const hasMins = minutesMap[ch.id] !== undefined && minutesMap[ch.id] !== ''
+                  return (
+                    <TableRow key={ch.id} hover sx={{ opacity: hasMins ? 1 : 0.6 }}>
+                      <TableCell sx={{ fontSize: '0.78rem' }}>
+                        <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{ch.name || ch.id}</Typography>
+                        <Typography sx={{ fontSize: '0.65rem', color: TP.muted, fontFamily: 'monospace' }}>{ch.id}</Typography>
+                      </TableCell>
+                      <TableCell sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtDate(streamDate(ch))}</TableCell>
+                      <TableCell sx={{ fontSize: '0.78rem' }}>{hrs.toFixed(2)}h</TableCell>
+                      <TableCell>
+                        <TextField select size="small" value={tournamentMap[ch.id] || ''}
+                          onChange={e => setTournamentMap(m => ({ ...m, [ch.id]: e.target.value }))}
+                          sx={{ minWidth: 140, '& .MuiInputBase-root': { fontSize: '0.75rem', height: 28 } }}>
+                          <MenuItem value="">— None —</MenuItem>
+                          {tournaments.map(t => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
+                        </TextField>
+                      </TableCell>
+                      <TableCell>
+                        <TextField type="number" size="small" placeholder="e.g. 2029"
+                          value={minutesMap[ch.id] ?? ''}
+                          onChange={e => setMinutesMap(m => ({ ...m, [ch.id]: e.target.value }))}
+                          inputProps={{ min: 0, step: 1 }}
+                          sx={{ width: 110, '& .MuiInputBase-root': { fontSize: '0.8rem', height: 32 } }} />
+                      </TableCell>
+                      <TableCell sx={{ fontSize: '0.78rem', fontWeight: 700, color: hasMins ? TP.accent : TP.muted }}>
+                        {hasMins ? `$${cost.total.toFixed(2)}` : '—'}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </Box>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ px: 2, pb: 2 }}>
+        <Button onClick={onClose} size="small" sx={{ color: TP.muted }}>Cancel</Button>
+        <Button variant="contained" size="small" startIcon={<SaveIcon />}
+          onClick={handleSave} disabled={saving || loggable.length === 0}
+          sx={{ bgcolor: TP.accent, '&:hover': { bgcolor: TP.accentHov } }}>
+          {saving ? 'Saving…' : 'Log Feeds'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
 // ─── CDN Records tab ──────────────────────────────────────────────────────────
 
-function CdnRecordsTab({ records, tournaments, pricing, token, onRefresh, showSnack }) {
-  const [dialog, setDialog]   = useState({ open: false, initial: null })
+function CdnRecordsTab({ records, tournaments, pricing, channels, token, onRefresh, showSnack }) {
+  const [dialog, setDialog]       = useState({ open: false, initial: null })
+  const [jwDialog, setJwDialog]   = useState(false)
   const [monthFilter, setMonthFilter] = useState('all')
-  const [deleting, setDeleting] = useState(null)
+  const [deleting, setDeleting]   = useState(null)
 
   // Build month options from existing records
   const months = [...new Set(records.map(r => monthKey(r.date)).filter(Boolean))].sort().reverse()
@@ -479,11 +628,18 @@ function CdnRecordsTab({ records, tournaments, pricing, token, onRefresh, showSn
                 </IconButton>
               </Tooltip>
               <Button
+                size="small" variant="contained"
+                onClick={() => setJwDialog(true)}
+                sx={{ fontSize: '0.72rem', bgcolor: TP.accent, '&:hover': { bgcolor: TP.accentHov } }}
+              >
+                Log from JW
+              </Button>
+              <Button
                 size="small" variant="outlined" startIcon={<AddIcon />}
                 onClick={() => setDialog({ open: true, initial: null })}
                 sx={{ fontSize: '0.72rem', borderColor: TP.accentBdr, color: TP.accent, '&:hover': { borderColor: TP.accent } }}
               >
-                Add Record
+                Manual Entry
               </Button>
             </Box>
           }
@@ -563,6 +719,17 @@ function CdnRecordsTab({ records, tournaments, pricing, token, onRefresh, showSn
         pricing={pricing}
         onClose={() => setDialog({ open: false, initial: null })}
         onSave={handleSave}
+      />
+
+      <LogFromJwDialog
+        open={jwDialog}
+        channels={channels}
+        tournaments={tournaments}
+        pricing={pricing}
+        token={token}
+        onClose={() => setJwDialog(false)}
+        onSaved={onRefresh}
+        showSnack={showSnack}
       />
     </>
   )
@@ -772,6 +939,7 @@ function TdDashboard({ token, onLogout }) {
   const [cdnRecords,   setCdnRecords]   = useState([])
   const [pricing,      setPricing]      = useState(null)
   const [tournaments,  setTournaments]  = useState([])
+  const [channels,     setChannels]     = useState([])
   const [loading,      setLoading]      = useState(true)
   const [snack,        setSnack]        = useState({ open: false, message: '', severity: 'success' })
 
@@ -780,18 +948,20 @@ function TdDashboard({ token, onLogout }) {
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [cRes, pRes, tRes] = await Promise.all([
+      const [cRes, pRes, tRes, chRes] = await Promise.all([
         fetch('/api/cdn-records'),
         fetch('/api/pricing'),
         fetch('/api/tournaments'),
+        fetch('/api/channels', { headers: { Authorization: `Bearer ${token}` } }),
       ])
-      if (cRes.ok) setCdnRecords(await cRes.json())
-      if (pRes.ok) setPricing(await pRes.json())
-      if (tRes.ok) setTournaments(await tRes.json())
+      if (cRes.ok)  setCdnRecords(await cRes.json())
+      if (pRes.ok)  setPricing(await pRes.json())
+      if (tRes.ok)  setTournaments(await tRes.json())
+      if (chRes.ok) { const d = await chRes.json(); setChannels(d.channels || []) }
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [token])
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
@@ -847,6 +1017,7 @@ function TdDashboard({ token, onLogout }) {
             records={cdnRecords}
             tournaments={tournaments}
             pricing={pricing}
+            channels={channels}
             token={token}
             onRefresh={fetchAll}
             showSnack={showSnack}
