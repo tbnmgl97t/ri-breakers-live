@@ -1104,8 +1104,8 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
                     <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff' }}>{day.label}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600, display: 'block' }}>{formatDate(day.date)}</Typography>
-                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{day.start_time} – {day.end_time} {/^E[DS]T$/.test(day.tz) ? 'ET' : (day.tz || 'ET')}</Typography>
+                    <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600, display: 'block', whiteSpace: 'nowrap' }}>{formatDate(day.date)}</Typography>
+                    <Typography variant="caption" sx={{ color: '#a8bcd4', whiteSpace: 'nowrap' }}>{day.start_time} – {day.end_time} {/^E[DS]T$/.test(day.tz) ? 'ET' : (day.tz || 'ET')}</Typography>
                   </TableCell>
 
                   <TableCell>
