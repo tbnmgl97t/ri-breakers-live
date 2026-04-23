@@ -2552,10 +2552,8 @@ function Dashboard({ token, onLogout }) {
                     <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)' } }}>
                       <TableCell>CHANNEL</TableCell>
                       <TableCell>STATUS</TableCell>
-                      <TableCell>START</TableCell>
-                      <TableCell>END</TableCell>
-                      <TableCell>STREAM URL</TableCell>
-                      <TableCell>INGEST</TableCell>
+                      <TableCell>WINDOW</TableCell>
+                      <TableCell>STREAM / INGEST</TableCell>
                       <TableCell />
                     </TableRow>
                   </TableHead>
@@ -2651,17 +2649,32 @@ function Dashboard({ token, onLogout }) {
 
                       // ── Format timestamps ────────────────────────────────────
                       const fmtTime = iso => {
-                        if (!iso) return '—'
-                        const s = new Date(iso).toLocaleString('en-US', {
+                        if (!iso) return null
+                        return new Date(iso).toLocaleString('en-US', {
                           month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
                           timeZone: 'America/New_York',
                         })
-                        return `${s} ET`
+                      }
+                      const fmtWindow = (startIso, endIso) => {
+                        const s = fmtTime(startIso)
+                        const e = fmtTime(endIso)
+                        if (!s && !e) return '—'
+                        // If same calendar day, show date once: "Apr 24 · 8:00 AM – 5:00 PM ET"
+                        const sDate = startIso ? new Date(startIso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' }) : null
+                        const eDate = endIso   ? new Date(endIso).toLocaleDateString('en-US',   { month: 'short', day: 'numeric', timeZone: 'America/New_York' }) : null
+                        if (s && e && sDate === eDate) {
+                          const sTime = s.replace(/^[A-Za-z]+ \d+,?\s*/, '')
+                          const eTime = e.replace(/^[A-Za-z]+ \d+,?\s*/, '')
+                          return { date: sDate, range: `${sTime} – ${eTime} ET` }
+                        }
+                        if (s && e) return { date: null, range: `${s} – ${e} ET` }
+                        if (s)      return { date: null, range: `${s} ET` }
+                        return       { date: null, range: `– ${e} ET` }
                       }
 
                       if (visibleChannels.length === 0) return (
                         <TableRow>
-                          <TableCell colSpan={7} sx={{ textAlign: 'center', py: 3 }}>
+                          <TableCell colSpan={5} sx={{ textAlign: 'center', py: 3 }}>
                             <Typography variant="body2" sx={{ color: AP.muted, fontStyle: 'italic' }}>
                               No streams match the selected filter.
                             </Typography>
@@ -2701,42 +2714,51 @@ function Dashboard({ token, onLogout }) {
                             </Box>
                           </TableCell>
                           <TableCell>
-                            <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{fmtTime(ch.stream_start)}</Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{fmtTime(ch.stream_end)}</Typography>
-                          </TableCell>
-                          <TableCell>
-                            {ch.stream_url
-                              ? <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.65rem', wordBreak: 'break-all' }}>{ch.stream_url}</Typography>
-                              : <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>—</Typography>
-                            }
-                          </TableCell>
-                          <TableCell>
-                            {ch.ingest_url ? (
-                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                  <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.6rem', width: 28 }}>URL</Typography>
-                                  <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.6rem', wordBreak: 'break-all' }}>{ch.ingest_url}</Typography>
-                                  <Tooltip title="Copy ingest URL">
-                                    <IconButton size="small" onClick={() => navigator.clipboard.writeText(ch.ingest_url)} sx={{ color: '#a8bcd4', flexShrink: 0, p: 0.25 }}>
-                                      <ContentCopyIcon sx={{ fontSize: 11 }} />
-                                    </IconButton>
-                                  </Tooltip>
+                            {(() => {
+                              const w = fmtWindow(ch.stream_start, ch.stream_end)
+                              if (w === '—') return <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.68rem' }}>—</Typography>
+                              return (
+                                <Box>
+                                  {w.date && <Typography variant="caption" sx={{ color: '#fff', fontSize: '0.68rem', display: 'block', fontWeight: 600 }}>{w.date}</Typography>}
+                                  <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem', whiteSpace: 'nowrap' }}>{w.range}</Typography>
                                 </Box>
+                              )
+                            })()}
+                          </TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              {ch.stream_url ? (
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                  <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.6rem', width: 28 }}>KEY</Typography>
-                                  <Typography variant="caption" sx={{ color: AP.accent, fontFamily: 'monospace', fontSize: '0.6rem' }}>{ch.ingest_key}</Typography>
-                                  <Tooltip title="Copy stream key">
-                                    <IconButton size="small" onClick={() => navigator.clipboard.writeText(ch.ingest_key)} sx={{ color: '#a8bcd4', flexShrink: 0, p: 0.25 }}>
-                                      <ContentCopyIcon sx={{ fontSize: 11 }} />
-                                    </IconButton>
-                                  </Tooltip>
+                                  <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.58rem', width: 26, flexShrink: 0 }}>URL</Typography>
+                                  <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.6rem', wordBreak: 'break-all' }}>{ch.stream_url}</Typography>
                                 </Box>
-                              </Box>
-                            ) : (
-                              <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>—</Typography>
-                            )}
+                              ) : null}
+                              {ch.ingest_url ? (
+                                <>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.58rem', width: 26, flexShrink: 0 }}>RTMP</Typography>
+                                    <Typography variant="caption" sx={{ color: '#a8bcd4', fontFamily: 'monospace', fontSize: '0.6rem', wordBreak: 'break-all' }}>{ch.ingest_url}</Typography>
+                                    <Tooltip title="Copy ingest URL">
+                                      <IconButton size="small" onClick={() => navigator.clipboard.writeText(ch.ingest_url)} sx={{ color: '#a8bcd4', flexShrink: 0, p: 0.25 }}>
+                                        <ContentCopyIcon sx={{ fontSize: 11 }} />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </Box>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.58rem', width: 26, flexShrink: 0 }}>KEY</Typography>
+                                    <Typography variant="caption" sx={{ color: AP.accent, fontFamily: 'monospace', fontSize: '0.6rem' }}>{ch.ingest_key}</Typography>
+                                    <Tooltip title="Copy stream key">
+                                      <IconButton size="small" onClick={() => navigator.clipboard.writeText(ch.ingest_key)} sx={{ color: '#a8bcd4', flexShrink: 0, p: 0.25 }}>
+                                        <ContentCopyIcon sx={{ fontSize: 11 }} />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </Box>
+                                </>
+                              ) : null}
+                              {!ch.stream_url && !ch.ingest_url && (
+                                <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>—</Typography>
+                              )}
+                            </Box>
                           </TableCell>
                           <TableCell align="right">
                             {!ch._fromCdn && (
