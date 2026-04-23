@@ -1229,6 +1229,8 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
               </Box>
 
 
+              <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+
               {/* ── Downloadable Recording ─────────────────────── */}
               <Box
                 onClick={() => setDownloadable(v => !v)}
