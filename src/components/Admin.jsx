@@ -3,6 +3,7 @@ import {
   Box, Paper, Typography, TextField, Button, CircularProgress,
   Alert, IconButton, Chip, Divider, Tooltip, Snackbar, Collapse,
   Dialog, DialogTitle, DialogContent, DialogActions,
+  Drawer,
   Table, TableBody, TableCell, TableHead, TableRow,
   AppBar, Toolbar, Stack, ToggleButton, ToggleButtonGroup, MenuItem,
   Tabs, Tab, Switch,
@@ -29,6 +30,15 @@ import PaletteIcon from '@mui/icons-material/Palette'
 import CloseIcon from '@mui/icons-material/Close'
 
 const SESSION_KEY = 'ri_admin_token'
+
+/** Normalise legacy camera1/camera2 fields into a streams array */
+function getSessionStreams(session) {
+  if (session && Array.isArray(session.streams)) return session.streams
+  const streams = []
+  if (session?.camera1_url) streams.push({ id: 1, url: session.camera1_url, name: session.camera1_name || 'Stream 1' })
+  if (session?.camera2_url) streams.push({ id: 2, url: session.camera2_url, name: session.camera2_name || 'Stream 2' })
+  return streams
+}
 
 // ─── Admin SaaS palette ───────────────────────────────────────────────────────
 
@@ -325,11 +335,11 @@ function LoginScreen({ onLogin }) {
   )
 }
 
-// ─── Tournament dialog (create / edit) ────────────────────────────────────────
+// ─── Event drawer (create / edit) ─────────────────────────────────────────────
 
 const EMPTY_TOURNAMENT = { name: '', location: '' }
 
-function TournamentDialog({ open, initial, onClose, onSave }) {
+function EventDrawer({ open, initial, onClose, onSave }) {
   const [form, setForm] = useState(EMPTY_TOURNAMENT)
   const [saving, setSaving] = useState(false)
 
@@ -352,56 +362,77 @@ function TournamentDialog({ open, initial, onClose, onSave }) {
   }
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs"
-      PaperProps={{ sx: { bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 } }}
+    <Drawer anchor="right" open={open} onClose={onClose}
+      PaperProps={{ sx: { width: 480, bgcolor: '#0d1117', borderLeft: '1px solid rgba(255,255,255,0.07)' } }}
     >
-      <DialogTitle sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <EmojiEventsIcon sx={{ color: AP.accent, fontSize: 20 }} />
-        {initial?.id ? 'Edit Tournament' : 'New Tournament'}
-      </DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important' }}>
-        <TextField label="Tournament Name" value={form.name} onChange={set('name')} size="small" fullWidth autoFocus
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <EmojiEventsIcon sx={{ color: AP.accent, fontSize: 20 }} />
+          <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', flex: 1 }}>
+            {initial?.id ? 'Edit Event' : 'Add Event'}
+          </Typography>
+          <IconButton size="small" onClick={onClose} sx={{ color: AP.muted }}>
+            <CloseIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Box>
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.07)' }} />
+        <TextField label="Event Name" value={form.name} onChange={set('name')} size="small" fullWidth autoFocus
           placeholder="e.g. Key West Classic" />
         <TextField label="Location" value={form.location} onChange={set('location')} size="small" fullWidth
           placeholder="e.g. Key West, FL" />
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} sx={{ color: '#a8bcd4' }}>Cancel</Button>
-        <Button
-          onClick={handleSave}
-          disabled={!form.name || saving}
-          variant="contained"
-          sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov } }}
-        >
-          {saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Save'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+        <Box sx={{ mt: 'auto', display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+          <Button onClick={onClose} sx={{ color: '#a8bcd4' }}>Cancel</Button>
+          <Button
+            onClick={handleSave}
+            disabled={!form.name || saving}
+            variant="contained"
+            sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov } }}
+          >
+            {saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Save Event'}
+          </Button>
+        </Box>
+      </Box>
+    </Drawer>
   )
 }
 
-// ─── Day dialog (create / edit within a tournament) ───────────────────────────
+// ─── Session drawer (create / edit within an event) ──────────────────────────
 
 const EMPTY_DAY = { label: '', date: '', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'EDT' }
 
-function DayDialog({ open, initial, tournamentName, onClose, onSave }) {
+function SessionDrawer({ open, initial, tournament, channels, onClose, onSaved, onOpenPicker }) {
   const [form, setForm] = useState(EMPTY_DAY)
+  const [streams, setStreams] = useState([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     setForm(initial
       ? { label: initial.label, date: initial.date, start_time: initial.start_time, end_time: initial.end_time, tz: initial.tz || 'EDT' }
       : EMPTY_DAY)
+    setStreams(initial ? getSessionStreams(initial) : [])
   }, [initial, open])
 
   function set(field) {
     return e => setForm(f => ({ ...f, [field]: e.target.value }))
   }
 
+  function addStream() {
+    if (streams.length >= 10) return
+    setStreams(s => [...s, { id: Date.now(), url: '', name: `Stream ${s.length + 1}` }])
+  }
+
+  function removeStream(idx) {
+    setStreams(s => s.filter((_, i) => i !== idx))
+  }
+
+  function setStreamName(idx, name) {
+    setStreams(s => s.map((st, i) => i === idx ? { ...st, name } : st))
+  }
+
   async function handleSave() {
     setSaving(true)
     try {
-      await onSave(form)
+      await onSaved({ ...form, streams })
       onClose()
     } finally {
       setSaving(false)
@@ -411,18 +442,25 @@ function DayDialog({ open, initial, tournamentName, onClose, onSave }) {
   const isValid = form.label && form.date && form.start_time && form.end_time
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs"
-      PaperProps={{ sx: { bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 } }}
+    <Drawer anchor="right" open={open} onClose={onClose}
+      PaperProps={{ sx: { width: 520, bgcolor: '#0d1117', borderLeft: '1px solid rgba(255,255,255,0.07)' } }}
     >
-      <DialogTitle sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', pb: 0.5 }}>
-        {initial?.id ? 'Edit Day' : 'Add Day'}
-        {tournamentName && (
-          <Typography component="span" sx={{ color: '#a8bcd4', fontSize: '0.75rem', fontFamily: 'Poppins, sans-serif', fontWeight: 400, ml: 1 }}>
-            — {tournamentName}
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%', overflow: 'auto' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', flex: 1 }}>
+            {initial?.id ? 'Edit Session' : 'Add Session'}
+            {tournament?.name && (
+              <Typography component="span" sx={{ color: '#a8bcd4', fontSize: '0.75rem', fontFamily: 'Poppins, sans-serif', fontWeight: 400, ml: 1 }}>
+                — {tournament.name}
+              </Typography>
+            )}
           </Typography>
-        )}
-      </DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important' }}>
+          <IconButton size="small" onClick={onClose} sx={{ color: AP.muted }}>
+            <CloseIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Box>
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.07)' }} />
+
         <TextField label="Label" value={form.label} onChange={set('label')} size="small" fullWidth autoFocus placeholder="e.g. Day 1" />
         <TextField label="Date" type="date" value={form.date} onChange={set('date')} size="small" fullWidth InputLabelProps={{ shrink: true }} />
         <Box sx={{ display: 'flex', gap: 1.5 }}>
@@ -430,33 +468,85 @@ function DayDialog({ open, initial, tournamentName, onClose, onSave }) {
           <TextField label="End"   value={form.end_time}   onChange={set('end_time')}   size="small" fullWidth placeholder="5:00 PM" />
         </Box>
         <TextField label="Timezone" value={form.tz} onChange={set('tz')} size="small" fullWidth placeholder="EDT" />
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} sx={{ color: '#a8bcd4' }}>Cancel</Button>
-        <Button
-          onClick={handleSave}
-          disabled={!isValid || saving}
-          variant="contained"
-          sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov } }}
-        >
-          {saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Save'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+
+        {/* Streams section */}
+        <Box>
+          <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.09em', mb: 1, display: 'block' }}>
+            STREAMS
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {streams.map((st, idx) => (
+              <Box key={st.id ?? idx} sx={{ border: '1px solid rgba(255,255,255,0.09)', borderRadius: 1.5, p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="caption" sx={{ color: AP.muted, fontWeight: 700, minWidth: 20 }}>#{idx + 1}</Typography>
+                  <TextField
+                    size="small" label="Name" value={st.name}
+                    onChange={e => setStreamName(idx, e.target.value)}
+                    sx={{ flex: 1 }}
+                  />
+                  <IconButton size="small" onClick={() => removeStream(idx)} sx={{ color: AP.muted, '&:hover': { color: '#f44336' } }}>
+                    <CloseIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="caption" sx={{
+                    color: st.url ? AP.accent : 'rgba(168,188,212,0.4)',
+                    fontFamily: 'monospace', fontSize: '0.65rem', flex: 1,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {st.url ? shortUrl(st.url) : 'No channel assigned'}
+                  </Typography>
+                  <Button
+                    size="small" variant="outlined"
+                    onClick={() => onOpenPicker(idx, initial, tournament?.id)}
+                    sx={{ fontSize: '0.68rem', py: 0.25, px: 1, borderColor: AP.accentBdr, color: AP.accent, '&:hover': { borderColor: AP.accent }, flexShrink: 0 }}
+                  >
+                    Assign
+                  </Button>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+          <Button
+            size="small" startIcon={<AddIcon />}
+            onClick={addStream}
+            disabled={streams.length >= 10}
+            sx={{ mt: 1, fontSize: '0.72rem', color: AP.accent, '&:hover': { bgcolor: AP.accentDim } }}
+          >
+            + Add Stream
+          </Button>
+        </Box>
+
+        <Box sx={{ mt: 'auto', display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+          <Button onClick={onClose} sx={{ color: '#a8bcd4' }}>Cancel</Button>
+          <Button
+            onClick={handleSave}
+            disabled={!isValid || saving}
+            variant="contained"
+            sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov } }}
+          >
+            {saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Save Session'}
+          </Button>
+        </Box>
+      </Box>
+    </Drawer>
   )
 }
 
 // ─── Channel picker dialog ────────────────────────────────────────────────────
 
 function ChannelPickerDialog({ open, slot, day, channels, onClose, onPick }) {
-  const currentUrl = slot === 1 ? day?.camera1_url : day?.camera2_url
+  const streamIndex = typeof slot === 'number' ? slot : null
+  const sessionStreams = day ? getSessionStreams(day) : []
+  const currentStream = streamIndex !== null ? sessionStreams[streamIndex] : null
+  const currentUrl = currentStream?.url || null
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm"
       PaperProps={{ sx: { bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 } }}
     >
       <DialogTitle sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', pb: 0 }}>
-        Assign Channel → {day?.label} · Camera {slot}
+        Assign Channel → {day?.label} · Stream {streamIndex !== null ? streamIndex + 1 : slot}
       </DialogTitle>
       <DialogContent sx={{ pt: 1.5 }}>
         {currentUrl && (
@@ -465,7 +555,7 @@ function ChannelPickerDialog({ open, slot, day, channels, onClose, onPick }) {
             <Box>
               <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.62rem', display: 'block' }}>CURRENTLY ASSIGNED</Typography>
               <Typography variant="caption" sx={{ color: AP.accent, fontWeight: 700, fontSize: '0.75rem' }}>
-                {(slot === 1 ? day?.camera1_name : day?.camera2_name) || currentUrl}
+                {currentStream?.name || currentUrl}
               </Typography>
             </Box>
           </Box>
@@ -886,7 +976,7 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
 
 // ─── Tournament card (with collapsible days table) ────────────────────────────
 
-function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEditDay, onDeleteDay, onOpenPicker, onEditTournament, onDeleteTournament }) {
+function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEditDay, onDeleteDay, onOpenPicker, onEditTournament, onDeleteTournament }) { // eslint-disable-line no-unused-vars
   const [expanded, setExpanded] = useState(true)
 
   const dateRange = getTournamentDateRange(tournament)
@@ -939,7 +1029,7 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
         </Box>
 
         <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }} onClick={e => e.stopPropagation()}>
-          <Tooltip title="Add day">
+          <Tooltip title="Add session">
             <Button
               size="small"
               startIcon={<AddIcon sx={{ fontSize: '14px !important' }} />}
@@ -947,15 +1037,15 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
               onClick={() => onAddDay(tournament)}
               sx={{ fontSize: '0.7rem', py: 0.3, px: 1, borderColor: AP.accentBdr, color: AP.accent, '&:hover': { borderColor: AP.accent } }}
             >
-              Add Day
+              + Add Session
             </Button>
           </Tooltip>
-          <Tooltip title="Edit tournament">
+          <Tooltip title="Edit event">
             <IconButton size="small" onClick={() => onEditTournament(tournament)} sx={{ color: '#a8bcd4', '&:hover': { color: '#fff' } }}>
               <EditIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Delete tournament">
+          <Tooltip title="Delete event">
             <IconButton size="small" onClick={() => onDeleteTournament(tournament)} sx={{ color: '#a8bcd4', '&:hover': { color: '#f44336' } }}>
               <DeleteIcon sx={{ fontSize: 16 }} />
             </IconButton>
@@ -968,23 +1058,24 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
         {!tournament.days?.length ? (
           <Box sx={{ px: 3, py: 2.5, textAlign: 'center' }}>
             <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.5)', fontStyle: 'italic', fontSize: '0.82rem' }}>
-              No days scheduled. Click "Add Day" to get started.
+              No sessions scheduled. Click "+ Add Session" to get started.
             </Typography>
           </Box>
         ) : (
           <Table size="small">
             <TableHead>
               <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)' } }}>
-                <TableCell>DAY</TableCell>
+                <TableCell>SESSION</TableCell>
                 <TableCell>DATE</TableCell>
                 <TableCell>TIME</TableCell>
-                <TableCell>CAMERA 1</TableCell>
-                <TableCell>CAMERA 2</TableCell>
+                <TableCell>STREAMS</TableCell>
                 <TableCell align="right" />
               </TableRow>
             </TableHead>
             <TableBody>
-              {tournament.days.map(day => (
+              {tournament.days.map(day => {
+                const dayStreams = getSessionStreams(day)
+                return (
                 <TableRow key={day.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff' }}>{day.label}</Typography>
@@ -996,53 +1087,40 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
                     <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{day.start_time} – {day.end_time} {day.tz}</Typography>
                   </TableCell>
 
-                  {[1, 2].map(slot => {
-                    const url  = slot === 1 ? day.camera1_url  : day.camera2_url
-                    const name = slot === 1 ? day.camera1_name : day.camera2_name
-                    return (
-                      <TableCell key={slot}>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {dayStreams.length === 0 ? (
+                        <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.68rem', fontStyle: 'italic' }}>No streams assigned</Typography>
+                      ) : dayStreams.map((st, idx) => (
                         <Box
-                          onClick={() => onOpenPicker(day, tournament.id, slot)}
+                          key={st.id ?? idx}
+                          onClick={() => onOpenPicker(idx, day, tournament.id)}
                           sx={{
-                            display: 'inline-flex', alignItems: 'center', gap: 0.75,
-                            cursor: 'pointer', px: 1, py: 0.5, borderRadius: 1,
+                            display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                            cursor: 'pointer', px: 1, py: 0.4, borderRadius: 1,
                             border: '1px solid',
-                            borderColor: url ? 'rgba(76,175,80,0.5)' : 'rgba(255,255,255,0.1)',
-                            bgcolor: url ? 'rgba(76,175,80,0.07)' : 'transparent',
-                            '&:hover': { borderColor: url ? '#4caf50' : AP.accent, bgcolor: url ? 'rgba(76,175,80,0.12)' : AP.accentDim },
+                            borderColor: st.url ? 'rgba(76,175,80,0.5)' : 'rgba(255,255,255,0.1)',
+                            bgcolor: st.url ? 'rgba(76,175,80,0.07)' : 'transparent',
+                            '&:hover': { borderColor: st.url ? '#4caf50' : AP.accent, bgcolor: st.url ? 'rgba(76,175,80,0.12)' : AP.accentDim },
                           }}
                         >
-                          {url ? (
-                            <>
-                              <CheckCircleIcon sx={{ fontSize: 14, color: '#4caf50', flexShrink: 0 }} />
-                              <Box>
-                                <Typography variant="caption" sx={{ color: '#fff', fontWeight: 700, fontSize: '0.72rem', display: 'block', lineHeight: 1.3 }}>
-                                  {name || shortUrl(url)}
-                                </Typography>
-                                <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.55)', fontFamily: 'monospace', fontSize: '0.6rem', display: 'block', lineHeight: 1.2 }}>
-                                  {shortUrl(url)}
-                                </Typography>
-                              </Box>
-                            </>
-                          ) : (
-                            <>
-                              <VideocamIcon sx={{ fontSize: 13, color: 'rgba(168,188,212,0.4)' }} />
-                              <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.68rem' }}>Unassigned</Typography>
-                            </>
-                          )}
+                          <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: st.url ? '#4caf50' : 'rgba(168,188,212,0.3)', flexShrink: 0 }} />
+                          <Typography variant="caption" sx={{ color: st.url ? '#fff' : 'rgba(168,188,212,0.4)', fontWeight: st.url ? 700 : 400, fontSize: '0.68rem' }}>
+                            {st.name || `Stream ${idx + 1}`}
+                          </Typography>
                         </Box>
-                      </TableCell>
-                    )
-                  })}
+                      ))}
+                    </Box>
+                  </TableCell>
 
                   <TableCell align="right">
                     <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                      <Tooltip title="Edit day">
+                      <Tooltip title="Edit session">
                         <IconButton size="small" onClick={() => onEditDay(day, tournament)} sx={{ color: '#a8bcd4', '&:hover': { color: '#fff' } }}>
                           <EditIcon sx={{ fontSize: 16 }} />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Delete day">
+                      <Tooltip title="Delete session">
                         <IconButton size="small" onClick={() => onDeleteDay(day, tournament)} sx={{ color: '#a8bcd4', '&:hover': { color: '#f44336' } }}>
                           <DeleteIcon sx={{ fontSize: 16 }} />
                         </IconButton>
@@ -1050,7 +1128,8 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
                     </Box>
                   </TableCell>
                 </TableRow>
-              ))}
+                )
+              })}
             </TableBody>
           </Table>
         )}
@@ -1146,7 +1225,7 @@ function TournamentCostCard({ tournament, cdnRecords = [] }) {
         {!tournament.days?.length ? (
           <Box sx={{ px: 3, py: 2.5, textAlign: 'center' }}>
             <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.5)', fontStyle: 'italic', fontSize: '0.82rem' }}>
-              No days scheduled.
+              No sessions scheduled.
             </Typography>
           </Box>
         ) : (
@@ -1154,7 +1233,7 @@ function TournamentCostCard({ tournament, cdnRecords = [] }) {
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)', whiteSpace: 'nowrap' } }}>
-                  <TableCell>DAY</TableCell>
+                  <TableCell>SESSION</TableCell>
                   <TableCell>DATE</TableCell>
                   <TableCell>FEEDS</TableCell>
                   <TableCell>STREAM HRS</TableCell>
@@ -1254,7 +1333,7 @@ function TournamentCostCard({ tournament, cdnRecords = [] }) {
                         <TableRow sx={{ '& td': { borderColor: 'rgba(255,255,255,0.04)', bgcolor: 'rgba(0,0,0,0.15)' } }}>
                           <TableCell colSpan={8} sx={{ pl: 5, py: 1.5 }}>
                             <Typography variant="caption" sx={{ color: AP.muted, fontStyle: 'italic', fontSize: '0.75rem' }}>
-                              No feeds logged for this day yet.
+                              No feeds logged for this session yet.
                             </Typography>
                           </TableCell>
                         </TableRow>
@@ -1307,7 +1386,7 @@ function TournamentCostCard({ tournament, cdnRecords = [] }) {
                   <TableRow sx={{ '& td': { borderColor: 'rgba(255,255,255,0.07)', borderTop: '1px solid rgba(255,255,255,0.1)', py: 1 } }}>
                     <TableCell colSpan={6} sx={{ textAlign: 'right' }}>
                       <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.08em' }}>
-                        TOURNAMENT TOTAL
+                        EVENT TOTAL
                       </Typography>
                     </TableCell>
                     <TableCell colSpan={2}>
@@ -1404,7 +1483,7 @@ function CostsPage({ tournaments, channels, cdnRecords = [], cdnPricing }) {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <AttachMoneyIcon sx={{ color: AP.accent, fontSize: 18 }} />
             <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
-              TOURNAMENT COSTS
+              EVENT COSTS
             </Typography>
           </Box>
           {grandTotal > 0 && (
@@ -1413,7 +1492,7 @@ function CostsPage({ tournaments, channels, cdnRecords = [], cdnPricing }) {
                 {fmtUSD(grandTotal)}
               </Typography>
               <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.62rem' }}>
-                all tournaments · feed fees + CDN
+                all events · feed fees + CDN
               </Typography>
             </Box>
           )}
@@ -1421,7 +1500,7 @@ function CostsPage({ tournaments, channels, cdnRecords = [], cdnPricing }) {
         <Box sx={{ p: 2 }}>
           {tournamentRollup.length === 0 ? (
             <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.5)', textAlign: 'center', py: 2 }}>
-              No tournaments found.
+              No events found.
             </Typography>
           ) : (
             tournamentRollup.map(t => (
@@ -1960,6 +2039,7 @@ function Dashboard({ token, onLogout }) {
   const [pickerDialog, setPickerDialog] = useState({ open: false, slot: null, day: null, tournamentId: null })
   const [createStreamOpen, setCreateStreamOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [dashboardView, setDashboardView] = useState('both')
   const [streamFilter, setStreamFilter] = useState('all')
   const [previewDialog, setPreviewDialog] = useState({ open: false, channelName: '', streamUrl: '' })
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' })
@@ -2086,7 +2166,7 @@ function Dashboard({ token, onLogout }) {
 
   // ── Day CRUD ─────────────────────────────────────────────────────────────────
 
-  async function saveDay(form) {
+  async function saveDay(formWithStreams) {
     const { tournament } = dayDialog
     const isEdit = !!dayDialog.initial?.id
     const res = await fetch('/api/tournament-days', {
@@ -2095,7 +2175,7 @@ function Dashboard({ token, onLogout }) {
       body: JSON.stringify({
         tournament_id: tournament.id,
         ...(isEdit ? { id: dayDialog.initial.id } : {}),
-        ...form,
+        ...formWithStreams,
       }),
     })
     const data = await res.json()
@@ -2121,38 +2201,50 @@ function Dashboard({ token, onLogout }) {
     }
   }
 
-  // ── Camera assignment ─────────────────────────────────────────────────────────
+  // ── Stream assignment ─────────────────────────────────────────────────────────
 
-  async function assignCamera(slot, tournamentId, picked) {
+  async function assignCamera(streamIndex, tournamentId, picked) {
     const { day } = pickerDialog
     if (!day) return
     const url  = picked?.url  ?? null
     const name = picked?.name ?? null
     setPickerDialog({ open: false, slot: null, day: null, tournamentId: null })
     try {
+      // Build updated streams array from current session
+      const existingStreams = getSessionStreams(day)
+      let updatedStreams
+      if (url === null) {
+        // Clear — remove stream at index
+        updatedStreams = existingStreams.filter((_, i) => i !== streamIndex)
+      } else {
+        // Assign — update or add stream at index
+        updatedStreams = [...existingStreams]
+        if (streamIndex < updatedStreams.length) {
+          updatedStreams[streamIndex] = { ...updatedStreams[streamIndex], url, name: name || updatedStreams[streamIndex].name }
+        } else {
+          updatedStreams.push({ id: Date.now(), url, name: name || `Stream ${streamIndex + 1}` })
+        }
+      }
       const res = await fetch('/api/tournament-days', {
         method: 'PUT',
         headers: authHeader(token),
         body: JSON.stringify({
           tournament_id: tournamentId,
           id: day.id,
-          camera1_url:  slot === 1 ? url  : day.camera1_url,
-          camera1_name: slot === 1 ? name : day.camera1_name,
-          camera2_url:  slot === 2 ? url  : day.camera2_url,
-          camera2_name: slot === 2 ? name : day.camera2_name,
+          streams: updatedStreams,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       await fetchTournaments()
-      showSnack(picked ? `Camera ${slot} assigned to ${day.label}` : `Camera ${slot} cleared`, 'success')
+      showSnack(picked ? `Stream ${streamIndex + 1} assigned to ${day.label}` : `Stream ${streamIndex + 1} cleared`, 'success')
     } catch (err) {
       showSnack(`Failed to save: ${err.message}`, 'error')
     }
   }
 
-  function openPicker(day, tournamentId, slot) {
-    setPickerDialog({ open: true, slot, day, tournamentId })
+  function openPicker(streamIndex, day, tournamentId) {
+    setPickerDialog({ open: true, slot: streamIndex, day, tournamentId })
   }
 
   // ── JW channel management ─────────────────────────────────────────────────────
@@ -2173,176 +2265,232 @@ function Dashboard({ token, onLogout }) {
     }
   }
 
+  // ── Stats helpers ────────────────────────────────────────────────────────────
+  const liveNow = channels.filter(ch => ch.status === 'active').length
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  const sessionsToday = tournaments.reduce((sum, t) => sum + (t.days || []).filter(d => d.date === todayStr).length, 0)
+  const totalCdnCost = cdnRecords.reduce((sum, r) => sum + (r.cost_total || 0), 0)
+
+  const NAV_ITEMS = [
+    { section: 'MANAGEMENT', items: [
+      { label: 'Events',       tab: 'dashboard', view: 'events',  count: tournaments.length },
+      { label: 'Live Streams', tab: 'dashboard', view: 'streams', count: channels.length },
+    ]},
+    { section: 'FINANCE', items: [
+      { label: 'Costs', tab: 'costs', view: null },
+    ]},
+    { section: 'SYSTEM', items: [
+      { label: 'Settings', tab: 'settings', view: null },
+    ]},
+  ]
+
+  function navClick(tab, view) {
+    setActiveTab(tab)
+    if (view) setDashboardView(view)
+  }
+
+  function isNavActive(tab, view) {
+    if (activeTab !== tab) return false
+    if (view && tab === 'dashboard') return dashboardView === view
+    return true
+  }
+
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
-      {/* Top bar */}
-      <AppBar position="sticky" elevation={0}
-        sx={{ background: `linear-gradient(90deg, ${AP.bg} 0%, ${AP.paper} 60%, ${AP.bg} 100%)`, borderBottom: `2px solid ${AP.accent}` }}
+    <Box height="100vh" display="flex" flexDirection="column" sx={{ bgcolor: 'background.default', overflow: 'hidden' }}>
+      {/* Topbar */}
+      <Box height={48} display="flex" alignItems="center" px={2} gap={1.5}
+        sx={{ borderBottom: '1px solid rgba(255,255,255,0.06)', bgcolor: '#0a0f1a', flexShrink: 0, zIndex: 10 }}
       >
-        <Toolbar sx={{ gap: 1.5, minHeight: { xs: 56, sm: 64 } }}>
-          <SettingsIcon sx={{ color: AP.accent, fontSize: 22 }} />
-          <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.08em', flexGrow: 1, fontSize: '1rem' }}>
-            ADMIN DASHBOARD
-          </Typography>
+        <Typography sx={{ fontFamily: "'Bayon'", letterSpacing: '0.1em', color: '#818cf8', fontSize: '0.95rem' }}>⚡ RI BREAKERS</Typography>
+        <Typography variant="caption" sx={{ color: '#334155', fontSize: '0.7rem' }}>Admin</Typography>
+        {liveNow > 0 && (
+          <Chip label={`${liveNow} LIVE`} size="small"
+            sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, bgcolor: AP.liveDim, color: AP.live, border: `1px solid ${AP.liveBdr}` }} />
+        )}
+        <Box ml="auto" display="flex" gap={1} alignItems="center">
           <Tooltip title="Go to live site">
-            <Button component="a" href="/" size="small" sx={{ color: '#a8bcd4', fontSize: '0.72rem' }}>
-              Live Site
-            </Button>
+            <Button component="a" href="/" size="small" sx={{ color: '#a8bcd4', fontSize: '0.72rem' }}>Live Site</Button>
           </Tooltip>
           <Tooltip title="Logout">
-            <IconButton onClick={onLogout} sx={{ color: '#a8bcd4' }}>
-              <LogoutIcon sx={{ fontSize: 20 }} />
+            <IconButton onClick={onLogout} sx={{ color: '#a8bcd4' }} size="small">
+              <LogoutIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </Tooltip>
-        </Toolbar>
-      </AppBar>
-
-      {/* Tab navigation */}
-      <Box sx={{ bgcolor: AP.bg, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-        <Tabs
-          value={activeTab}
-          onChange={(_, v) => setActiveTab(v)}
-          sx={{
-            minHeight: 42,
-            maxWidth: 1200,
-            mx: 'auto',
-            px: { xs: 2, md: 3 },
-            '& .MuiTab-root': {
-              minHeight: 42,
-              color: AP.muted,
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              letterSpacing: '0.08em',
-              textTransform: 'none',
-              py: 0,
-              px: 2,
-              gap: 0.75,
-            },
-            '& .Mui-selected':      { color: '#fff !important' },
-            '& .MuiTabs-indicator': { bgcolor: AP.accent, height: 2 },
-          }}
-        >
-          <Tab label="Dashboard" value="dashboard" />
-          <Tab label="Costs"    value="costs"    icon={<AttachMoneyIcon sx={{ fontSize: 15 }} />} iconPosition="start" />
-          <Tab label="Settings" value="settings" icon={<SettingsIcon    sx={{ fontSize: 15 }} />} iconPosition="start" />
-        </Tabs>
+        </Box>
       </Box>
 
-      <Box sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 2, md: 3 }, py: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
-
-        {error && <Alert severity="error">{error}</Alert>}
-
-        {activeTab === 'settings' ? (
-          <TenantSettingsPanel token={token} />
-        ) : activeTab === 'dashboard' ? (
-          <>
-            {/* ── Tournaments ──────────────────────── */}
-            <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
-              <Box sx={{
-                px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                borderBottom: '1px solid rgba(255,255,255,0.07)',
-                background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <EmojiEventsIcon sx={{ color: AP.accent, fontSize: 18 }} />
-                  <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
-                    TOURNAMENTS
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Tooltip title="Refresh">
-                    <IconButton size="small" onClick={fetchTournaments} sx={{ color: '#a8bcd4' }}>
-                      <RefreshIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
-                  </Tooltip>
-                  <Button
-                    size="small"
-                    startIcon={<AddIcon />}
-                    variant="outlined"
-                    onClick={() => setTournamentDialog({ open: true, initial: null })}
-                    sx={{ fontSize: '0.72rem', borderColor: AP.accentBdr, color: AP.accent, '&:hover': { borderColor: AP.accent } }}
-                  >
-                    Add Tournament
-                  </Button>
-                </Box>
-              </Box>
-
-              <Box sx={{ p: loadingTournaments ? 0 : 2 }}>
-                {loadingTournaments ? (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                    <CircularProgress size={28} sx={{ color: AP.accent }} />
-                  </Box>
-                ) : tournaments.length === 0 ? (
-                  <Box sx={{ textAlign: 'center', py: 4 }}>
-                    <EmojiEventsIcon sx={{ color: 'rgba(168,188,212,0.2)', fontSize: 40, mb: 1 }} />
-                    <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.5)' }}>
-                      No tournaments yet. Click "Add Tournament" to create one.
-                    </Typography>
-                  </Box>
-                ) : (
-                  tournaments.map(t => (
-                    <TournamentCard
-                      key={t.id}
-                      tournament={t}
-                      channels={channels}
-                      token={token}
-                      onRefresh={fetchTournaments}
-                      onAddDay={tournament => setDayDialog({ open: true, initial: null, tournament })}
-                      onEditDay={(day, tournament) => setDayDialog({ open: true, initial: day, tournament })}
-                      onDeleteDay={deleteDay}
-                      onOpenPicker={openPicker}
-                      onEditTournament={tournament => setTournamentDialog({ open: true, initial: tournament })}
-                      onDeleteTournament={deleteTournament}
-                    />
-                  ))
-                )}
-              </Box>
-            </Paper>
-
-            {/* ── JW Live Channels ─────────────────────── */}
-            <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
-              <Box sx={{
-                px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                borderBottom: '1px solid rgba(255,255,255,0.07)',
-                background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
-                    LIVE STREAMS
-                  </Typography>
-                  <Box component="select"
-                    value={streamFilter}
-                    onChange={e => setStreamFilter(e.target.value)}
+      {/* Layout */}
+      <Box display="flex" flex={1} overflow="hidden">
+        {/* Sidebar */}
+        <Box width={200} sx={{ bgcolor: '#0a0f1a', borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', py: 2, flexShrink: 0, overflow: 'auto' }}>
+          {NAV_ITEMS.map(({ section, items }) => (
+            <Box key={section} sx={{ mb: 2 }}>
+              <Typography sx={{ px: 2, pb: 0.75, fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(148,163,184,0.5)', textTransform: 'uppercase' }}>
+                {section}
+              </Typography>
+              {items.map(item => {
+                const active = isNavActive(item.tab, item.view)
+                return (
+                  <Box
+                    key={item.label}
+                    onClick={() => navClick(item.tab, item.view)}
                     sx={{
-                      bgcolor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-                      borderRadius: 1, color: AP.muted, fontSize: '0.7rem', px: 1, py: 0.4,
-                      cursor: 'pointer', outline: 'none',
-                      '&:hover': { borderColor: 'rgba(255,255,255,0.25)' },
+                      px: 2, py: 0.85, display: 'flex', alignItems: 'center', gap: 1,
+                      cursor: 'pointer', borderRadius: '0 6px 6px 0', mr: 1,
+                      bgcolor: active ? AP.accentDim : 'transparent',
+                      borderLeft: active ? `2px solid ${AP.accent}` : '2px solid transparent',
+                      '&:hover': { bgcolor: active ? AP.accentMid : 'rgba(255,255,255,0.04)' },
                     }}
                   >
-                    <option value="all">All</option>
-                    <option value="live">Live</option>
-                    <option value="scheduled">Scheduled</option>
-                    <option value="past">Past</option>
+                    <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: active ? AP.accent : 'rgba(148,163,184,0.4)', flexShrink: 0 }} />
+                    <Typography sx={{ fontSize: '0.78rem', fontWeight: active ? 700 : 500, color: active ? '#e2e8f0' : '#94a3b8', flex: 1 }}>
+                      {item.label}
+                    </Typography>
+                    {item.count != null && (
+                      <Chip label={item.count} size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(255,255,255,0.07)', color: '#64748b', minWidth: 20 }} />
+                    )}
                   </Box>
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Tooltip title="Refresh channels">
-                    <IconButton size="small" onClick={fetchChannels} sx={{ color: '#a8bcd4' }}>
-                      <RefreshIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
-                  </Tooltip>
-                  <Button
-                    size="small"
-                    startIcon={<LiveTvIcon sx={{ fontSize: '14px !important' }} />}
-                    variant="outlined"
-                    onClick={() => setCreateStreamOpen(true)}
-                    sx={{ fontSize: '0.72rem', borderColor: AP.accentBdr, color: AP.accent, '&:hover': { borderColor: AP.accent } }}
-                  >
-                    New Live Stream
-                  </Button>
-                </Box>
+                )
+              })}
+            </Box>
+          ))}
+        </Box>
+
+        {/* Main content */}
+        <Box flex={1} overflow="auto">
+          {error && <Alert severity="error" sx={{ m: 2 }}>{error}</Alert>}
+
+          {activeTab === 'dashboard' && (
+            <>
+              {/* Stats row */}
+              <Box display="grid" sx={{ gridTemplateColumns: 'repeat(4,1fr)', gap: 1.5, p: 2, pb: 0 }}>
+                {[
+                  { label: 'Live Now',       value: liveNow,        color: AP.live,    dim: AP.liveDim   },
+                  { label: 'Sessions Today', value: sessionsToday,  color: AP.accent,  dim: AP.accentDim },
+                  { label: 'Event Cost',     value: `$${totalCdnCost.toFixed(2)}`, color: AP.warn, dim: AP.warnDim },
+                  { label: 'Total Streams',  value: channels.length, color: AP.slate,  dim: AP.slateDim  },
+                ].map(({ label, value, color, dim }) => (
+                  <Paper key={label} elevation={0} sx={{ p: 2, border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, bgcolor: dim }}>
+                    <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      {label}
+                    </Typography>
+                    <Typography sx={{ color, fontWeight: 700, fontSize: '1.6rem', fontFamily: "'Bayon', sans-serif", lineHeight: 1.2, mt: 0.25 }}>
+                      {value}
+                    </Typography>
+                  </Paper>
+                ))}
               </Box>
+
+              {/* 2-col content grid */}
+              <Box display="grid" sx={{ gridTemplateColumns: '1fr 1.6fr', gap: 2, p: 2 }}>
+
+                {/* Events panel */}
+                <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+                  <Box sx={{
+                    px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    borderBottom: '1px solid rgba(255,255,255,0.07)',
+                    background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <EmojiEventsIcon sx={{ color: AP.accent, fontSize: 18 }} />
+                      <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
+                        EVENTS
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Tooltip title="Refresh">
+                        <IconButton size="small" onClick={fetchTournaments} sx={{ color: '#a8bcd4' }}>
+                          <RefreshIcon sx={{ fontSize: 18 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <Button
+                        size="small"
+                        startIcon={<AddIcon />}
+                        variant="outlined"
+                        onClick={() => setTournamentDialog({ open: true, initial: null })}
+                        sx={{ fontSize: '0.72rem', borderColor: AP.accentBdr, color: AP.accent, '&:hover': { borderColor: AP.accent } }}
+                      >
+                        Add Event
+                      </Button>
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ p: loadingTournaments ? 0 : 2 }}>
+                    {loadingTournaments ? (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                        <CircularProgress size={28} sx={{ color: AP.accent }} />
+                      </Box>
+                    ) : tournaments.length === 0 ? (
+                      <Box sx={{ textAlign: 'center', py: 4 }}>
+                        <EmojiEventsIcon sx={{ color: 'rgba(168,188,212,0.2)', fontSize: 40, mb: 1 }} />
+                        <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.5)' }}>
+                          No events yet. Click "Add Event" to create one.
+                        </Typography>
+                      </Box>
+                    ) : (
+                      tournaments.map(t => (
+                        <TournamentCard
+                          key={t.id}
+                          tournament={t}
+                          channels={channels}
+                          token={token}
+                          onRefresh={fetchTournaments}
+                          onAddDay={tournament => setDayDialog({ open: true, initial: null, tournament })}
+                          onEditDay={(day, tournament) => setDayDialog({ open: true, initial: day, tournament })}
+                          onDeleteDay={deleteDay}
+                          onOpenPicker={openPicker}
+                          onEditTournament={tournament => setTournamentDialog({ open: true, initial: tournament })}
+                          onDeleteTournament={deleteTournament}
+                        />
+                      ))
+                    )}
+                  </Box>
+                </Paper>
+
+                {/* Streams panel */}
+                <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+                  <Box sx={{
+                    px: 2, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    borderBottom: '1px solid rgba(255,255,255,0.07)',
+                    background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
+                        LIVE STREAMS
+                      </Typography>
+                      <Box component="select"
+                        value={streamFilter}
+                        onChange={e => setStreamFilter(e.target.value)}
+                        sx={{
+                          bgcolor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                          borderRadius: 1, color: AP.muted, fontSize: '0.7rem', px: 1, py: 0.4,
+                          cursor: 'pointer', outline: 'none',
+                          '&:hover': { borderColor: 'rgba(255,255,255,0.25)' },
+                        }}
+                      >
+                        <option value="all">All</option>
+                        <option value="live">Live</option>
+                        <option value="scheduled">Scheduled</option>
+                        <option value="past">Past</option>
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Tooltip title="Refresh channels">
+                        <IconButton size="small" onClick={fetchChannels} sx={{ color: '#a8bcd4' }}>
+                          <RefreshIcon sx={{ fontSize: 18 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <Button
+                        size="small"
+                        startIcon={<LiveTvIcon sx={{ fontSize: '14px !important' }} />}
+                        variant="outlined"
+                        onClick={() => setCreateStreamOpen(true)}
+                        sx={{ fontSize: '0.72rem', borderColor: AP.accentBdr, color: AP.accent, '&:hover': { borderColor: AP.accent } }}
+                      >
+                        New Live Stream
+                      </Button>
+                    </Box>
+                  </Box>
 
               {channelError && (
                 <Alert severity="warning" sx={{ m: 2, fontSize: '0.8rem' }}>{channelError}</Alert>
@@ -2580,21 +2728,32 @@ function Dashboard({ token, onLogout }) {
                   </TableBody>
                 </Table>
               )}
-            </Paper>
-          </>
-        ) : (
-          /* costs tab */
-          <CostsPage
-            tournaments={tournaments}
-            channels={channels}
-            cdnRecords={cdnRecords}
-            cdnPricing={cdnPricing}
-          />
-        )}
+                </Paper>
+              </Box>
+            </>
+          )}
 
+          {activeTab === 'costs' && (
+            <Box sx={{ p: 2 }}>
+              <CostsPage
+                tournaments={tournaments}
+                channels={channels}
+                cdnRecords={cdnRecords}
+                cdnPricing={cdnPricing}
+              />
+            </Box>
+          )}
+
+          {activeTab === 'settings' && (
+            <Box sx={{ p: 2 }}>
+              <TenantSettingsPanel token={token} />
+            </Box>
+          )}
+
+        </Box>
       </Box>
 
-      {/* ── Dialogs ─────────────────────────────────── */}
+      {/* ── Dialogs / Drawers ─────────────────────────────────── */}
       <PreviewPlayerDialog
         open={previewDialog.open}
         channelName={previewDialog.channelName}
@@ -2607,19 +2766,20 @@ function Dashboard({ token, onLogout }) {
         onClose={() => setCostRecordDialog({ open: false, initial: null })}
         onSave={saveCostRecord}
       />
-      <TournamentDialog
+      <EventDrawer
         open={tournamentDialog.open}
         initial={tournamentDialog.initial}
         onClose={() => setTournamentDialog({ open: false, initial: null })}
         onSave={saveTournament}
       />
-      <DayDialog
+      <SessionDrawer
         open={dayDialog.open}
         initial={dayDialog.initial}
         tournament={dayDialog.tournament}
-        tournamentName={dayDialog.tournament?.name}
+        channels={channels}
         onClose={() => setDayDialog({ open: false, initial: null, tournament: null })}
-        onSave={saveDay}
+        onSaved={saveDay}
+        onOpenPicker={openPicker}
       />
       <ChannelPickerDialog
         open={pickerDialog.open}

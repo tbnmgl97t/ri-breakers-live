@@ -192,9 +192,9 @@ function CdnRecordDialog({ open, initial, tournaments, pricing, onClose, onSave 
           <TextField label="Date" type="date" value={form.date} onChange={set('date')}
             size="small" fullWidth InputLabelProps={{ shrink: true }} />
           <TextField label="Label" value={form.label} onChange={set('label')} size="small" fullWidth
-            placeholder="KWC 2026 Day 3" />
+            placeholder="KWC 2026 Session 3" />
         </Box>
-        <TextField label="Tournament (optional)" select value={form.tournament_id} onChange={set('tournament_id')}
+        <TextField label="Event (optional)" select value={form.tournament_id} onChange={set('tournament_id')}
           size="small" fullWidth>
           <MenuItem value="">— None —</MenuItem>
           {tournaments.map(t => (
@@ -325,12 +325,12 @@ function OverviewTab({ records, pricing, tournaments }) {
       {/* Per-tournament */}
       {byTournament.length > 0 && (
         <Paper elevation={0}>
-          <SectionHeader icon={<BarChartIcon />} title="BY TOURNAMENT" />
+          <SectionHeader icon={<BarChartIcon />} title="BY EVENT" />
           <Box sx={{ overflowX: 'auto' }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  {['Tournament', 'Feeds', 'Stream Hrs', 'GB Delivered', 'Feed Fees', 'CDN Cost', 'Total'].map(h => (
+                  {['Event', 'Feeds', 'Stream Hrs', 'GB Delivered', 'Feed Fees', 'CDN Cost', 'Total'].map(h => (
                     <TableCell key={h} sx={{ color: TP.muted, fontSize: '0.7rem', fontWeight: 600 }}>{h}</TableCell>
                   ))}
                 </TableRow>
@@ -500,7 +500,7 @@ function LogFromJwDialog({ open, channels, records, tournaments, pricing, token,
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  {['Feed', 'Date', 'Stream Hrs', 'Tournament', 'Mins Delivered', 'Est. Cost'].map(h => (
+                  {['Feed', 'Date', 'Stream Hrs', 'Event', 'Mins Delivered', 'Est. Cost'].map(h => (
                     <TableCell key={h} sx={{ color: TP.muted, fontSize: '0.7rem', fontWeight: 600 }}>{h}</TableCell>
                   ))}
                 </TableRow>

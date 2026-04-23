@@ -41,10 +41,10 @@ curl -sf -X PATCH \
           "name": "Key West Classic 2026",
           "location": "Key West, FL",
           "days": [
-            { "id": 1, "label": "Pro/Am",          "date": "2026-04-16", "start_time": "8:00 AM", "end_time": "3:00 PM", "tz": "EDT", "camera1_url": "https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8", "camera1_name": "Main Deck", "camera2_url": "https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8", "camera2_name": "Bridge" },
-            { "id": 2, "label": "Day 1",            "date": "2026-04-17", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "EDT", "camera1_url": "https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8", "camera1_name": "Main Deck", "camera2_url": "https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8", "camera2_name": "Bridge" },
-            { "id": 3, "label": "Day 2",            "date": "2026-04-18", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "EDT", "camera1_url": "https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8", "camera1_name": "Main Deck", "camera2_url": "https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8", "camera2_name": "Bridge" },
-            { "id": 4, "label": "Day 3 (Finals)",   "date": "2026-04-19", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "EDT", "camera1_url": "https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8", "camera1_name": "Main Deck", "camera2_url": "https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8", "camera2_name": "Bridge" }
+            { "id": 1, "label": "Pro/Am",          "date": "2026-04-16", "start_time": "8:00 AM", "end_time": "3:00 PM", "tz": "EDT", "streams": [{"id":1,"url":"https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8","name":"Main Deck"},{"id":2,"url":"https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8","name":"Bridge"}] },
+            { "id": 2, "label": "Session 1",        "date": "2026-04-17", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "EDT", "streams": [{"id":1,"url":"https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8","name":"Main Deck"},{"id":2,"url":"https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8","name":"Bridge"}] },
+            { "id": 3, "label": "Session 2",        "date": "2026-04-18", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "EDT", "streams": [{"id":1,"url":"https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8","name":"Main Deck"},{"id":2,"url":"https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8","name":"Bridge"}] },
+            { "id": 4, "label": "Finals",            "date": "2026-04-19", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "EDT", "streams": [{"id":1,"url":"https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8","name":"Main Deck"},{"id":2,"url":"https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8","name":"Bridge"}] }
           ]
         },
         {
