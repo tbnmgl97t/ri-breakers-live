@@ -41,10 +41,10 @@ curl -sf -X PATCH \
           "name": "Key West Classic 2026",
           "location": "Key West, FL",
           "days": [
-            { "id": 1, "label": "Pro/Am",          "date": "2026-04-16", "start_time": "8:00 AM", "end_time": "3:00 PM", "tz": "EDT", "streams": [{"id":1,"url":"https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8","name":"Main Deck"},{"id":2,"url":"https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8","name":"Bridge"}] },
-            { "id": 2, "label": "Session 1",        "date": "2026-04-17", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "EDT", "streams": [{"id":1,"url":"https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8","name":"Main Deck"},{"id":2,"url":"https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8","name":"Bridge"}] },
-            { "id": 3, "label": "Session 2",        "date": "2026-04-18", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "EDT", "streams": [{"id":1,"url":"https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8","name":"Main Deck"},{"id":2,"url":"https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8","name":"Bridge"}] },
-            { "id": 4, "label": "Finals",            "date": "2026-04-19", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "EDT", "streams": [{"id":1,"url":"https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8","name":"Main Deck"},{"id":2,"url":"https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8","name":"Bridge"}] }
+            { "id": 1, "label": "Pro/Am",          "date": "2026-04-16", "start_time": "8:00 AM", "end_time": "3:00 PM", "tz": "ET", "streams": [{"id":1,"url":"https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8","name":"Main Deck"},{"id":2,"url":"https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8","name":"Bridge"}] },
+            { "id": 2, "label": "Session 1",        "date": "2026-04-17", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "ET", "streams": [{"id":1,"url":"https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8","name":"Main Deck"},{"id":2,"url":"https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8","name":"Bridge"}] },
+            { "id": 3, "label": "Session 2",        "date": "2026-04-18", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "ET", "streams": [{"id":1,"url":"https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8","name":"Main Deck"},{"id":2,"url":"https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8","name":"Bridge"}] },
+            { "id": 4, "label": "Finals",            "date": "2026-04-19", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "ET", "streams": [{"id":1,"url":"https://cdn.jwplayer.com/live/broadcast/die1qpMr.m3u8","name":"Main Deck"},{"id":2,"url":"https://cdn.jwplayer.com/live/broadcast/CpOw7syq.m3u8","name":"Bridge"}] }
           ]
         },
         {
@@ -52,9 +52,9 @@ curl -sf -X PATCH \
           "name": "Block Island Shootout",
           "location": "Block Island, RI",
           "days": [
-            { "id": 1, "label": "Day 1",  "date": "2026-06-12", "start_time": "7:00 AM", "end_time": "4:00 PM", "tz": "EDT", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
-            { "id": 2, "label": "Day 2",  "date": "2026-06-13", "start_time": "7:00 AM", "end_time": "4:00 PM", "tz": "EDT", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
-            { "id": 3, "label": "Finals", "date": "2026-06-14", "start_time": "7:00 AM", "end_time": "3:00 PM", "tz": "EDT", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null }
+            { "id": 1, "label": "Day 1",  "date": "2026-06-12", "start_time": "7:00 AM", "end_time": "4:00 PM", "tz": "ET", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
+            { "id": 2, "label": "Day 2",  "date": "2026-06-13", "start_time": "7:00 AM", "end_time": "4:00 PM", "tz": "ET", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
+            { "id": 3, "label": "Finals", "date": "2026-06-14", "start_time": "7:00 AM", "end_time": "3:00 PM", "tz": "ET", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null }
           ]
         },
         {
@@ -62,9 +62,9 @@ curl -sf -X PATCH \
           "name": "Montauk Masters",
           "location": "Montauk, NY",
           "days": [
-            { "id": 1, "label": "Pro/Am", "date": "2026-07-09", "start_time": "8:00 AM", "end_time": "3:00 PM", "tz": "EDT", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
-            { "id": 2, "label": "Day 1",  "date": "2026-07-10", "start_time": "7:30 AM", "end_time": "5:00 PM", "tz": "EDT", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
-            { "id": 3, "label": "Day 2",  "date": "2026-07-11", "start_time": "7:30 AM", "end_time": "5:00 PM", "tz": "EDT", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null }
+            { "id": 1, "label": "Pro/Am", "date": "2026-07-09", "start_time": "8:00 AM", "end_time": "3:00 PM", "tz": "ET", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
+            { "id": 2, "label": "Day 1",  "date": "2026-07-10", "start_time": "7:30 AM", "end_time": "5:00 PM", "tz": "ET", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
+            { "id": 3, "label": "Day 2",  "date": "2026-07-11", "start_time": "7:30 AM", "end_time": "5:00 PM", "tz": "ET", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null }
           ]
         },
         {
@@ -72,8 +72,8 @@ curl -sf -X PATCH \
           "name": "Cape Cod Invitational",
           "location": "Hyannis, MA",
           "days": [
-            { "id": 1, "label": "Day 1", "date": "2026-08-07", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "EDT", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
-            { "id": 2, "label": "Day 2", "date": "2026-08-08", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "EDT", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null }
+            { "id": 1, "label": "Day 1", "date": "2026-08-07", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "ET", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
+            { "id": 2, "label": "Day 2", "date": "2026-08-08", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "ET", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null }
           ]
         },
         {
@@ -81,10 +81,10 @@ curl -sf -X PATCH \
           "name": "Key West Classic 2025",
           "location": "Key West, FL",
           "days": [
-            { "id": 1, "label": "Pro/Am", "date": "2025-04-10", "start_time": "8:00 AM", "end_time": "3:00 PM", "tz": "EDT", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
-            { "id": 2, "label": "Day 1",  "date": "2025-04-11", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "EDT", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
-            { "id": 3, "label": "Day 2",  "date": "2025-04-12", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "EDT", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
-            { "id": 4, "label": "Day 3",  "date": "2025-04-13", "start_time": "8:00 AM", "end_time": "4:00 PM", "tz": "EDT", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null }
+            { "id": 1, "label": "Pro/Am", "date": "2025-04-10", "start_time": "8:00 AM", "end_time": "3:00 PM", "tz": "ET", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
+            { "id": 2, "label": "Day 1",  "date": "2025-04-11", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "ET", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
+            { "id": 3, "label": "Day 2",  "date": "2025-04-12", "start_time": "8:00 AM", "end_time": "5:00 PM", "tz": "ET", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null },
+            { "id": 4, "label": "Day 3",  "date": "2025-04-13", "start_time": "8:00 AM", "end_time": "4:00 PM", "tz": "ET", "camera1_url": null, "camera1_name": null, "camera2_url": null, "camera2_name": null }
           ]
         }
       ]

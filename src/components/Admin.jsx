@@ -414,7 +414,7 @@ function EventDrawer({ open, initial, onClose, onSave }) {
 
 // ─── Session drawer (create / edit within an event) ──────────────────────────
 
-const EMPTY_DAY = { label: '', date: '', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'EDT' }
+const EMPTY_DAY = { label: '', date: '', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'ET' }
 
 function SessionDrawer({ open, initial, tournament, channels, onClose, onSaved, onOpenPicker }) {
   const [form, setForm] = useState(EMPTY_DAY)
@@ -423,7 +423,7 @@ function SessionDrawer({ open, initial, tournament, channels, onClose, onSaved, 
 
   useEffect(() => {
     setForm(initial
-      ? { label: initial.label, date: initial.date, start_time: initial.start_time, end_time: initial.end_time, tz: initial.tz || 'EDT' }
+      ? { label: initial.label, date: initial.date, start_time: initial.start_time, end_time: initial.end_time, tz: 'ET' }
       : EMPTY_DAY)
     setStreams(initial ? getSessionStreams(initial) : [])
   }, [initial, open])
@@ -483,7 +483,7 @@ function SessionDrawer({ open, initial, tournament, channels, onClose, onSaved, 
           <TextField label="Start" value={form.start_time} onChange={set('start_time')} size="small" fullWidth placeholder="8:00 AM" />
           <TextField label="End"   value={form.end_time}   onChange={set('end_time')}   size="small" fullWidth placeholder="5:00 PM" />
         </Box>
-        <TextField label="Timezone" value={form.tz} onChange={set('tz')} size="small" fullWidth placeholder="EDT" />
+        <TextField label="Timezone" value={form.tz} onChange={set('tz')} size="small" fullWidth placeholder="ET" />
 
         {/* Streams section */}
         <Box>
@@ -789,7 +789,7 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
     }
   }
 
-  const tzLabel = startDate ? (isEDT(startDate) ? 'EDT' : 'EST') : 'ET'
+  const tzLabel = 'ET'
   const startUtcIso = channelType === 'live_event' ? toUtcIso(startDate, startTime) : null
   const minutesUntilStart = startUtcIso ? (new Date(startUtcIso) - Date.now()) / 60_000 : null
   const tooSoon = minutesUntilStart !== null && minutesUntilStart < 15
@@ -1108,7 +1108,7 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
                     <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{formatDate(day.date)}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{day.start_time} – {day.end_time} {day.tz}</Typography>
+                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{day.start_time} – {day.end_time} {/^E[DS]T$/.test(day.tz) ? 'ET' : (day.tz || 'ET')}</Typography>
                   </TableCell>
 
                   <TableCell>
