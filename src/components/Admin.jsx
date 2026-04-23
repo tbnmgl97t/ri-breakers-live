@@ -480,7 +480,7 @@ function EventDrawer({ open, initial, onClose, onSave }) {
         <Divider sx={{ borderColor: 'rgba(255,255,255,0.07)', mb: 2.5, flexShrink: 0 }} />
 
         {/* Scrollable body */}
-        <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2.5, pr: 0.5 }}>
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2.5, pr: 0.5 }}>
 
           {/* Event details */}
           <Box>
@@ -1062,7 +1062,7 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
         </Box>
 
         {/* Scrollable content */}
-        <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2.5, pr: 0.5 }}>
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2.5, pr: 0.5 }}>
           {error && <Alert severity="error" sx={{ fontSize: '0.8rem' }}>{error}</Alert>}
 
           {!result ? (
