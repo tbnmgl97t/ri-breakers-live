@@ -2371,7 +2371,32 @@ function Dashboard({ token, onLogout }) {
                       }
                       const live      = channels.filter(ch => ch.status === 'active').sort(sortByStart)
                       const scheduled = channels.filter(ch => ['requested','scheduled','creating'].includes(ch.status?.toLowerCase())).sort(sortByStart)
-                      const past      = channels.filter(ch => ['idle','stopping','destroying'].includes(ch.status?.toLowerCase())).sort(sortByStart)
+                      const jwPast    = channels.filter(ch => ['idle','stopping','destroying'].includes(ch.status?.toLowerCase()))
+
+                      // Supplement with channels from CDN records not returned by JW API
+                      const jwIds = new Set(channels.map(ch => ch.id))
+                      const cdnChannelMap = {}
+                      cdnRecords.forEach(r => {
+                        if (!r.channel_id || jwIds.has(r.channel_id)) return
+                        const existing = cdnChannelMap[r.channel_id]
+                        // Keep the most recent date entry per channel
+                        if (!existing || r.date > existing.date) {
+                          cdnChannelMap[r.channel_id] = r
+                        }
+                      })
+                      const syntheticPast = Object.values(cdnChannelMap).map(r => ({
+                        id:           r.channel_id,
+                        name:         r.channel_name,
+                        status:       'idle',
+                        stream_type:  null,
+                        stream_url:   null,
+                        stream_start: r.date ? `${r.date}T00:00:00` : null,
+                        stream_end:   null,
+                        ingest_url:   null,
+                        ingest_key:   null,
+                        _fromCdn:     true,
+                      }))
+                      const past = [...jwPast, ...syntheticPast].sort(sortByStart)
 
                       const sectionLabel = (label, count) => (
                         <TableRow key={`sec-${label}`}>
@@ -2426,10 +2451,14 @@ function Dashboard({ token, onLogout }) {
                             </Box>
                           </TableCell>
                           <TableCell>
-                            <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{fmtTime(ch.stream_start)}</Typography>
+                            <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>
+                              {ch._fromCdn
+                                ? new Date(ch.stream_start + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                : fmtTime(ch.stream_start)}
+                            </Typography>
                           </TableCell>
                           <TableCell>
-                            <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{fmtTime(ch.stream_end)}</Typography>
+                            <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>{ch._fromCdn ? '—' : fmtTime(ch.stream_end)}</Typography>
                           </TableCell>
                           <TableCell>
                             {ch.stream_url
@@ -2464,28 +2493,30 @@ function Dashboard({ token, onLogout }) {
                             )}
                           </TableCell>
                           <TableCell align="right">
-                            <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                              {ch.stream_url && (
-                                <Tooltip title="Preview stream (admin only)">
+                            {!ch._fromCdn && (
+                              <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                                {ch.stream_url && (
+                                  <Tooltip title="Preview stream (admin only)">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => setPreviewDialog({ open: true, channelName: ch.name, streamUrl: ch.stream_url })}
+                                      sx={{ color: AP.accent, '&:hover': { color: AP.accentHov } }}
+                                    >
+                                      <PlayArrowIcon sx={{ fontSize: 18 }} />
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
+                                <Tooltip title="Delete stream">
                                   <IconButton
                                     size="small"
-                                    onClick={() => setPreviewDialog({ open: true, channelName: ch.name, streamUrl: ch.stream_url })}
-                                    sx={{ color: AP.accent, '&:hover': { color: AP.accentHov } }}
+                                    onClick={() => deleteChannel(ch.id, ch.name)}
+                                    sx={{ color: AP.muted, '&:hover': { color: '#f44336' } }}
                                   >
-                                    <PlayArrowIcon sx={{ fontSize: 18 }} />
+                                    <DeleteIcon sx={{ fontSize: 16 }} />
                                   </IconButton>
                                 </Tooltip>
-                              )}
-                              <Tooltip title="Delete stream">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => deleteChannel(ch.id, ch.name)}
-                                  sx={{ color: AP.muted, '&:hover': { color: '#f44336' } }}
-                                >
-                                  <DeleteIcon sx={{ fontSize: 16 }} />
-                                </IconButton>
-                              </Tooltip>
-                            </Box>
+                              </Box>
+                            )}
                           </TableCell>
                         </TableRow>
                       )
