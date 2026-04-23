@@ -1152,7 +1152,6 @@ function TournamentCostCard({ tournament }) {
                   <TableCell>FEED FEE</TableCell>
                   <TableCell>CDN COST</TableCell>
                   <TableCell>TOTAL</TableCell>
-                  <TableCell>STATUS</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1199,42 +1198,43 @@ function TournamentCostCard({ tournament }) {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
-                          {logged ? fmtUSD(day.cost_cdn) : '—'}
-                        </Typography>
+                        {logged ? (
+                          <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{fmtUSD(day.cost_cdn)}</Typography>
+                        ) : (
+                          <Typography variant="caption" sx={{
+                            fontStyle: 'italic', whiteSpace: 'nowrap',
+                            color: live ? '#10b981' : pending ? '#f59e0b' : 'rgba(168,188,212,0.3)',
+                            fontSize: '0.68rem',
+                          }}>
+                            {live ? 'In progress…' : pending ? 'Pending' : scheduled ? 'Upcoming' : '—'}
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Typography variant="caption" sx={{
-                          color: logged ? AP.accent : live ? '#10b981' : 'rgba(168,188,212,0.35)',
+                          color: logged ? AP.accent : 'rgba(168,188,212,0.35)',
                           fontWeight: logged ? 700 : 400,
                           fontSize:   logged ? '0.78rem' : '0.72rem',
-                          whiteSpace: 'nowrap',
                         }}>
-                          {logged    ? fmtUSD(day.cost_total)
-                            : live      ? 'In progress…'
-                            : pending   ? 'Awaiting CDN data'
-                            : scheduled ? 'Upcoming'
-                            : '—'}
+                          {logged ? fmtUSD(day.cost_total) : '—'}
                         </Typography>
                       </TableCell>
-                      <TableCell>{statusChip(day.source)}</TableCell>
                     </TableRow>
                   )
                 })}
                 {/* Subtotal */}
                 {hasCost && (
                   <TableRow sx={{ '& td': { borderColor: 'rgba(255,255,255,0.07)', borderTop: '1px solid rgba(255,255,255,0.1)', py: 1 } }}>
-                    <TableCell colSpan={7} sx={{ textAlign: 'right' }}>
+                    <TableCell colSpan={6} sx={{ textAlign: 'right' }}>
                       <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.08em' }}>
                         TOURNAMENT TOTAL
                       </Typography>
                     </TableCell>
-                    <TableCell>
+                    <TableCell colSpan={2}>
                       <Typography sx={{ color: AP.accent, fontWeight: 700, fontSize: '0.88rem', fontFamily: "'Bayon', sans-serif" }}>
                         {fmtUSD(tournament.tournamentTotal)}
                       </Typography>
                     </TableCell>
-                    <TableCell />
                   </TableRow>
                 )}
               </TableBody>
