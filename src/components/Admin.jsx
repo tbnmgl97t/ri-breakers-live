@@ -1198,32 +1198,31 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
               {/* ── Ingest Point ───────────────────────────────── */}
               <Box>
                 <Typography sx={sectionLabel}>INGEST POINT (optional)</Typography>
-                {loadingPoints ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
-                    <CircularProgress size={14} sx={{ color: AP.muted }} />
-                    <Typography variant="caption" sx={{ color: AP.muted }}>Loading available ingest points…</Typography>
-                  </Box>
-                ) : ingestPoints.length > 0 ? (
-                  <TextField
-                    select fullWidth size="small" label="Ingest Point"
-                    value={ingestPointId} onChange={e => setIngestPointId(e.target.value)}
-                    helperText={startDate ? 'Availability checked against your selected time window' : 'Set start/end time to check availability'}
-                  >
-                    <MenuItem value="">— Auto-assign —</MenuItem>
-                    {ingestPoints.map(p => (
-                      <MenuItem key={p.id} value={p.id}>
-                        {p.name}{p.available ? ' — available' : ' — in use'}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                ) : (
-                  <TextField
-                    fullWidth size="small" label="Ingest Point ID"
-                    value={ingestPointId} onChange={e => setIngestPointId(e.target.value)}
-                    placeholder="Leave blank to auto-assign"
-                    helperText="No ingest points returned — enter an ID manually or leave blank"
-                  />
-                )}
+                <TextField
+                  select fullWidth size="small" label="Ingest Point"
+                  value={ingestPointId}
+                  onChange={e => !loadingPoints && setIngestPointId(e.target.value)}
+                  disabled={loadingPoints}
+                  helperText={
+                    loadingPoints
+                      ? 'Checking availability…'
+                      : startDate
+                        ? 'Availability checked against your selected time window'
+                        : 'Set start/end time to check availability'
+                  }
+                  InputProps={{
+                    endAdornment: loadingPoints
+                      ? <CircularProgress size={14} sx={{ color: AP.muted, mr: 2.5, flexShrink: 0 }} />
+                      : undefined,
+                  }}
+                >
+                  <MenuItem value="">— Auto-assign —</MenuItem>
+                  {ingestPoints.map(p => (
+                    <MenuItem key={p.id} value={p.id}>
+                      {p.name}{p.available ? ' ✓ available' : ' — in use'}
+                    </MenuItem>
+                  ))}
+                </TextField>
               </Box>
 
 
