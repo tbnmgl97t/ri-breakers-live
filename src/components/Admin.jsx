@@ -1063,10 +1063,29 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
 function TournamentCostCard({ tournament }) {
   const [expanded, setExpanded] = useState(true)
   const dateRange = getTournamentDateRange(tournament)
-  const hasCost = tournament.tournamentTotal > 0
+  const hasCost   = tournament.tournamentTotal > 0
+
+  function fmtUSD(n) { return '$' + Number(n || 0).toFixed(2) }
+  function fmtGB(n)  { return Number(n || 0).toFixed(2) + ' GB' }
+
+  const statusChip = (source) => {
+    const cfg = {
+      logged:  { label: 'LOGGED',  bg: AP.accentDim,                     color: AP.accent, border: AP.accentBdr },
+      live:    { label: 'LIVE',    bg: 'rgba(16,185,129,0.15)',           color: '#10b981', border: 'rgba(16,185,129,0.4)' },
+      pending: { label: 'PENDING', bg: 'rgba(245,158,11,0.12)',           color: '#f59e0b', border: 'rgba(245,158,11,0.4)' },
+      none:    { label: 'NO DATA', bg: 'rgba(168,188,212,0.06)',          color: 'rgba(168,188,212,0.35)', border: 'rgba(168,188,212,0.15)' },
+    }[source] || {}
+    return (
+      <Chip label={cfg.label} size="small" sx={{
+        fontSize: '0.57rem', height: 16, fontWeight: 700, letterSpacing: '0.05em',
+        bgcolor: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
+      }} />
+    )
+  }
 
   return (
     <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden', mb: 2 }}>
+      {/* Card header */}
       <Box
         sx={{
           px: 2, py: 1.5,
@@ -1098,7 +1117,6 @@ function TournamentCostCard({ tournament }) {
             )}
           </Box>
         </Box>
-        {/* Tournament total in header */}
         <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
           <Typography sx={{
             color: hasCost ? AP.accent : 'rgba(168,188,212,0.35)',
@@ -1108,7 +1126,7 @@ function TournamentCostCard({ tournament }) {
             {hasCost ? fmtUSD(tournament.tournamentTotal) : '—'}
           </Typography>
           <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.45)', fontSize: '0.62rem' }}>
-            fixed + CDN
+            feed fees + CDN
           </Typography>
         </Box>
       </Box>
@@ -1121,94 +1139,104 @@ function TournamentCostCard({ tournament }) {
             </Typography>
           </Box>
         ) : (
-          <Table size="small">
-            <TableHead>
-              <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)' } }}>
-                <TableCell>DAY</TableCell>
-                <TableCell>DATE</TableCell>
-                <TableCell>FEEDS</TableCell>
-                <TableCell>TOTAL HRS</TableCell>
-                <TableCell>STORAGE</TableCell>
-                <TableCell>INGESTION</TableCell>
-                <TableCell>PLAYOUT</TableCell>
-                <TableCell>FIXED TOTAL</TableCell>
-                <TableCell>SOURCE</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {tournament.days.map(day => (
-                <TableRow key={day.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff' }}>{day.label}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{formatDate(day.date)}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
-                      {day.channelCount > 0 ? day.channelCount : '—'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
-                      {day.dayHours > 0 ? day.dayHours.toFixed(1) : '—'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
-                      {day.dayHours > 0 ? fmtUSD(day.dayHours * RATES.storage) : '—'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
-                      {day.dayHours > 0 ? fmtUSD(day.dayHours * RATES.ingestion) : '—'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
-                      {day.dayHours > 0 ? fmtUSD(day.dayHours * RATES.playout) : '—'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" sx={{
-                      color: day.dayTotal > 0 ? AP.accent : 'rgba(168,188,212,0.35)',
-                      fontWeight: day.dayTotal > 0 ? 700 : 400,
-                      fontSize: day.dayTotal > 0 ? '0.78rem' : '0.72rem',
+          <Box sx={{ overflowX: 'auto' }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)', whiteSpace: 'nowrap' } }}>
+                  <TableCell>DAY</TableCell>
+                  <TableCell>DATE</TableCell>
+                  <TableCell>FEEDS</TableCell>
+                  <TableCell>STREAM HRS</TableCell>
+                  <TableCell>GB DEL</TableCell>
+                  <TableCell>FEED FEE</TableCell>
+                  <TableCell>CDN COST</TableCell>
+                  <TableCell>TOTAL</TableCell>
+                  <TableCell>STATUS</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {tournament.days.map(day => {
+                  const logged  = day.source === 'logged'
+                  const pending = day.source === 'pending'
+                  const live    = day.source === 'live'
+                  const none    = day.source === 'none'
+                  return (
+                    <TableRow key={day.id || day.date} sx={{
+                      '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 },
+                      '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' },
+                      opacity: none ? 0.5 : 1,
                     }}>
-                      {day.dayTotal > 0 ? fmtUSD(day.dayTotal) : '—'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    {day.source === 'live' && (
-                      <Chip label="live" size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: AP.liveDim, color: AP.live }} />
-                    )}
-                    {day.source === 'historical' && (
-                      <Chip label="archived" size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(168,188,212,0.1)', color: 'rgba(168,188,212,0.6)' }} />
-                    )}
-                    {day.source === 'none' && (
-                      <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.3)', fontSize: '0.65rem' }}>no data</Typography>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {/* Subtotal row */}
-              {tournament.tournamentTotal > 0 && (
-                <TableRow sx={{ '& td': { borderColor: 'rgba(255,255,255,0.07)', borderTop: '1px solid rgba(255,255,255,0.1)', py: 1 } }}>
-                  <TableCell colSpan={7} sx={{ textAlign: 'right' }}>
-                    <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.08em' }}>
-                      TOURNAMENT TOTAL
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography sx={{ color: AP.accent, fontWeight: 700, fontSize: '0.88rem', fontFamily: "'Bayon', sans-serif" }}>
-                      {fmtUSD(tournament.tournamentTotal)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell />
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff', fontSize: '0.82rem' }}>{day.label}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="caption" sx={{ color: '#a8bcd4', whiteSpace: 'nowrap' }}>{formatDate(day.date)}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                          {day.feedCount > 0 ? day.feedCount : '—'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                          {day.stream_hours > 0
+                            ? `${Number(day.stream_hours).toFixed(2)}h${(live || pending) ? ' (est.)' : ''}`
+                            : '—'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                          {logged ? fmtGB(day.gb_delivered) : '—'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                          {logged  ? fmtUSD(day.cost_feed)
+                            : (live || pending) && day.est_feed > 0 ? fmtUSD(day.est_feed)
+                            : '—'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                          {logged ? fmtUSD(day.cost_cdn) : '—'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="caption" sx={{
+                          color: logged ? AP.accent : live ? '#10b981' : 'rgba(168,188,212,0.35)',
+                          fontWeight: logged ? 700 : 400,
+                          fontSize:   logged ? '0.78rem' : '0.72rem',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {logged  ? fmtUSD(day.cost_total)
+                            : live    ? 'In progress…'
+                            : pending ? 'Awaiting CDN data'
+                            : '—'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{statusChip(day.source)}</TableCell>
+                    </TableRow>
+                  )
+                })}
+                {/* Subtotal */}
+                {hasCost && (
+                  <TableRow sx={{ '& td': { borderColor: 'rgba(255,255,255,0.07)', borderTop: '1px solid rgba(255,255,255,0.1)', py: 1 } }}>
+                    <TableCell colSpan={7} sx={{ textAlign: 'right' }}>
+                      <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.08em' }}>
+                        TOURNAMENT TOTAL
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography sx={{ color: AP.accent, fontWeight: 700, fontSize: '0.88rem', fontFamily: "'Bayon', sans-serif" }}>
+                        {fmtUSD(tournament.tournamentTotal)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell />
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </Box>
         )}
       </Collapse>
     </Paper>
@@ -1217,89 +1245,64 @@ function TournamentCostCard({ tournament }) {
 
 // ─── Costs page ───────────────────────────────────────────────────────────────
 
-function CostsPage({ tournaments, channels, costRecords, onOpenCostDialog, onEditRecord, onDeleteRecord }) {
+function CostsPage({ tournaments, channels, cdnRecords = [], cdnPricing }) {
 
-  // ── Build date → live channel cost map (YYYY-MM-DD in ET) ─────────────────
-  const channelCostByDate = {}
+  function fmtUSD(n) { return '$' + Number(n || 0).toFixed(2) }
+
+  // ── date → JW channels map ─────────────────────────────────────────────────
+  const channelsByDate = {}
   channels.forEach(ch => {
     if (!ch.stream_start) return
     const date = new Date(ch.stream_start).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-    if (!channelCostByDate[date]) channelCostByDate[date] = { total: 0, hours: 0, count: 0 }
-    const cost = calcChannelCost(ch)
-    if (cost) {
-      channelCostByDate[date].total += cost.total
-      channelCostByDate[date].hours += cost.hours
-      channelCostByDate[date].count++
-    }
+    if (!channelsByDate[date]) channelsByDate[date] = []
+    channelsByDate[date].push(ch)
   })
 
-  // ── Build date → historical record map ────────────────────────────────────
-  const histByDate = {}
-  costRecords.forEach(r => {
-    if (!histByDate[r.date]) histByDate[r.date] = []
-    histByDate[r.date].push(r)
-  })
+  function streamHours(ch) {
+    const s = new Date(ch.stream_start)
+    const e = ch.stream_end ? new Date(ch.stream_end) : new Date()
+    return Math.max(0, (e - s) / 3_600_000)
+  }
+  function estFeedFee(ch) {
+    const overrides = cdnPricing?.channel_overrides?.[ch.id] || {}
+    const rate = overrides.feed_rate_per_hr ?? cdnPricing?.feed_rate_per_hr ?? 15
+    return streamHours(ch) * rate
+  }
 
-  // ── Build enriched tournament rollup ──────────────────────────────────────
+  // ── Build enriched tournament rollup from cdn records ────────────────────
   const tournamentRollup = tournaments.map(t => {
     let tournamentTotal = 0
     const enrichedDays = (t.days || []).map(day => {
-      const liveCost = channelCostByDate[day.date]
-      const histRecs = histByDate[day.date] || []
+      const recs       = cdnRecords.filter(r => r.date === day.date && Number(r.tournament_id) === t.id)
+      const jwChannels = channelsByDate[day.date] || []
 
-      if (liveCost && liveCost.count > 0) {
-        tournamentTotal += liveCost.total
-        return { ...day, dayTotal: liveCost.total, dayHours: liveCost.hours, channelCount: liveCost.count, source: 'live' }
-      } else if (histRecs.length > 0) {
-        let dayTotal = 0, dayHours = 0, channelCount = 0
-        histRecs.forEach(r => {
-          const hrs = r.total_hours ?? (r.hours_per_channel * r.channel_count)
-          dayTotal += hrs * FIXED_RATE
-          dayHours += hrs
-          channelCount += r.channel_count
-        })
-        tournamentTotal += dayTotal
-        return { ...day, dayTotal, dayHours, channelCount, source: 'historical' }
+      if (recs.length > 0) {
+        // LOGGED — sum all cdn records for this day
+        const totals = recs.reduce((s, r) => ({
+          stream_hours: s.stream_hours + (r.stream_hours  || 0),
+          gb_delivered: s.gb_delivered + (r.gb_delivered  || 0),
+          cost_feed:    s.cost_feed    + (r.cost_feed     || 0),
+          cost_cdn:     s.cost_cdn     + (r.cost_cdn      || 0),
+          cost_total:   s.cost_total   + (r.cost_total    || 0),
+        }), { stream_hours: 0, gb_delivered: 0, cost_feed: 0, cost_cdn: 0, cost_total: 0 })
+        tournamentTotal += totals.cost_total
+        return { ...day, ...totals, feedCount: recs.length, source: 'logged' }
+      } else if (jwChannels.length > 0) {
+        // LIVE or PENDING — estimate feed fee from stream hours
+        const isLive   = jwChannels.some(ch => !ch.stream_end || new Date(ch.stream_end) > new Date())
+        const estHours = jwChannels.reduce((s, ch) => s + streamHours(ch), 0)
+        const est_feed = jwChannels.reduce((s, ch) => s + estFeedFee(ch), 0)
+        return { ...day, stream_hours: estHours, est_feed, feedCount: jwChannels.length, source: isLive ? 'live' : 'pending' }
       }
-      return { ...day, dayTotal: 0, dayHours: 0, channelCount: 0, source: 'none' }
+      return { ...day, feedCount: 0, stream_hours: 0, source: 'none' }
     })
     return { ...t, days: enrichedDays, tournamentTotal }
   })
 
   const grandTotal = tournamentRollup.reduce((s, t) => s + t.tournamentTotal, 0)
 
-  // ── JW channel cost table ─────────────────────────────────────────────────
-  const sortedChannels = [...channels].sort((a, b) => {
-    if (!a.stream_start && !b.stream_start) return (a.name || '').localeCompare(b.name || '')
-    if (!a.stream_start) return 1
-    if (!b.stream_start) return -1
-    const diff = new Date(b.stream_start) - new Date(a.stream_start)
-    return diff !== 0 ? diff : (a.name || '').localeCompare(b.name || '')
-  })
-
-  // ── Daily summary (live + historical merged) ──────────────────────────────
-  const liveDailyEntries = Object.entries(Object.fromEntries(calcDailyCosts(channels)))
-    .map(([dateLabel, d]) => ({ dateLabel, ...d, historical: false }))
-
-  const historicalEntries = costRecords.map(r => {
-    const dateLabel = new Date(r.date + 'T12:00:00').toLocaleDateString('en-US', {
-      weekday: 'short', month: 'short', day: 'numeric',
-    })
-    const hrs = r.total_hours ?? (r.hours_per_channel * r.channel_count)
-    return {
-      dateLabel, date: r.date, label: r.label, id: r.id,
-      count: r.channel_count, hours: hrs,
-      storage: hrs * RATES.storage, ingestion: hrs * RATES.ingestion,
-      playout: hrs * RATES.playout, total: hrs * FIXED_RATE,
-      historical: true,
-    }
-  })
-
-  const allDays = [...liveDailyEntries, ...historicalEntries]
-    .sort((a, b) => (b.date || b.dateLabel).localeCompare(a.date || a.dateLabel))
-  const summaryTotal = allDays.reduce((s, d) => s + d.total, 0)
-
-  const STATUS_LABELS = { requested: 'Scheduled', scheduled: 'Scheduled', creating: 'Creating', active: 'Live', idle: 'Idle', stopping: 'Stopping', destroying: 'Destroying' }
+  // Unattributed cdn records (no tournament_id)
+  const unattributed = cdnRecords.filter(r => !r.tournament_id)
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -1324,7 +1327,7 @@ function CostsPage({ tournaments, channels, costRecords, onOpenCostDialog, onEdi
                 {fmtUSD(grandTotal)}
               </Typography>
               <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontSize: '0.62rem' }}>
-                all tournaments · fixed + CDN
+                all tournaments · feed fees + CDN
               </Typography>
             </Box>
           )}
@@ -1342,202 +1345,64 @@ function CostsPage({ tournaments, channels, costRecords, onOpenCostDialog, onEdi
         </Box>
       </Paper>
 
-      {/* ── JW Channel Costs ───────────────────────────────────── */}
-      <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
-        <Box sx={{
-          px: 2, py: 1.5,
-          borderBottom: '1px solid rgba(255,255,255,0.07)',
-          background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <LiveTvIcon sx={{ color: AP.accent, fontSize: 18 }} />
-            <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
-              JW CHANNEL COSTS
-            </Typography>
+      {/* ── Unattributed records (no tournament_id) ───────────── */}
+      {unattributed.length > 0 && (
+        <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+          <Box sx={{
+            px: 2, py: 1.5,
+            borderBottom: '1px solid rgba(255,255,255,0.07)',
+            background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <LiveTvIcon sx={{ color: AP.muted, fontSize: 18 }} />
+              <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', color: AP.muted }}>
+                UNATTRIBUTED FEEDS
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.65rem' }}>
+                — not linked to a tournament
+              </Typography>
+            </Box>
           </Box>
-        </Box>
-        {sortedChannels.filter(ch => ch.stream_start).length === 0 ? (
-          <Typography variant="body2" sx={{ color: '#a8bcd4', textAlign: 'center', py: 3 }}>
-            No channels with cost data yet.
-          </Typography>
-        ) : (
-          <Table size="small">
-            <TableHead>
-              <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)' } }}>
-                <TableCell>CHANNEL</TableCell>
-                <TableCell>STATUS</TableCell>
-                <TableCell>DATE</TableCell>
-                <TableCell>HOURS</TableCell>
-                <TableCell>STORAGE</TableCell>
-                <TableCell>INGESTION</TableCell>
-                <TableCell>PLAYOUT</TableCell>
-                <TableCell>FIXED TOTAL</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {sortedChannels.map(ch => {
-                const cost = calcChannelCost(ch)
-                if (!cost) return null
-                const isLive = ch.status === 'active'
-                return (
-                  <TableRow key={ch.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#fff' }}>{ch.name}</Typography>
-                      <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.5)', fontFamily: 'monospace', fontSize: '0.62rem' }}>{ch.id}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={STATUS_LABELS[ch.status?.toLowerCase()] || ch.status || 'Idle'}
-                        size="small"
-                        sx={{
-                          height: 18, fontSize: '0.6rem', fontWeight: 700,
-                          bgcolor: isLive ? AP.liveDim : 'rgba(255,255,255,0.06)',
-                          color:  isLive ? AP.live   : AP.muted,
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.68rem' }}>
-                        {new Date(ch.stream_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
-                        {cost.hours.toFixed(2)}{isLive ? ' ▸' : ''}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{fmtUSD(cost.storage)}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{fmtUSD(cost.ingestion)}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{fmtUSD(cost.playout)}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" sx={{ color: AP.accent, fontWeight: 700, fontSize: '0.75rem' }}>
-                        {fmtUSD(cost.total)}
-                      </Typography>
-                    </TableCell>
+          <Box sx={{ overflowX: 'auto' }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ '& th': { color: '#a8bcd4', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.05)', whiteSpace: 'nowrap' } }}>
+                  <TableCell>DATE</TableCell>
+                  <TableCell>LABEL</TableCell>
+                  <TableCell>FEED</TableCell>
+                  <TableCell>STREAM HRS</TableCell>
+                  <TableCell>GB DEL</TableCell>
+                  <TableCell>FEED FEE</TableCell>
+                  <TableCell>CDN COST</TableCell>
+                  <TableCell>TOTAL</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {unattributed.map(r => (
+                  <TableRow key={r.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1 }, '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
+                    <TableCell sx={{ fontSize: '0.75rem', color: AP.muted, whiteSpace: 'nowrap' }}>{r.date}</TableCell>
+                    <TableCell sx={{ fontSize: '0.75rem', color: AP.text }}>{r.label}</TableCell>
+                    <TableCell sx={{ fontSize: '0.75rem', color: AP.text }}>{r.channel_name}</TableCell>
+                    <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{Number(r.stream_hours).toFixed(2)}h</TableCell>
+                    <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{Number(r.gb_delivered || 0).toFixed(2)} GB</TableCell>
+                    <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{fmtUSD(r.cost_feed)}</TableCell>
+                    <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{fmtUSD(r.cost_cdn)}</TableCell>
+                    <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: AP.accent }}>{fmtUSD(r.cost_total)}</TableCell>
                   </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        )}
-      </Paper>
-
-      {/* ── Daily Cost Summary / Historical Records ────────────── */}
-      <Paper elevation={0} sx={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
-        <Box sx={{
-          px: 2, py: 1.5,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          borderBottom: '1px solid rgba(255,255,255,0.07)',
-          background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
-        }}>
-          <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
-            DAILY COST SUMMARY
-          </Typography>
-          <Button
-            size="small"
-            startIcon={<AddIcon sx={{ fontSize: '13px !important' }} />}
-            onClick={onOpenCostDialog}
-            sx={{ fontSize: '0.65rem', color: '#a8bcd4', py: 0.25, px: 1, '&:hover': { color: '#fff' } }}
-          >
-            Add Historical Entry
-          </Button>
-        </Box>
-
-        {allDays.length === 0 ? (
-          <Typography variant="body2" sx={{ color: '#a8bcd4', textAlign: 'center', py: 3 }}>
-            No cost data yet.
-          </Typography>
-        ) : (
-          <Box sx={{ px: 2, py: 2 }}>
-            <Stack spacing={1}>
-              {allDays.map(d => (
-                <Box
-                  key={d.historical ? `hist-${d.id}` : `live-${d.dateLabel}`}
-                  sx={{
-                    display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: { xs: 1.5, md: 3 },
-                    px: 1.5, py: 1.25, borderRadius: 1.5,
-                    bgcolor: d.historical ? 'rgba(168,188,212,0.03)' : 'rgba(255,255,255,0.025)',
-                    border: `1px solid ${d.historical ? 'rgba(168,188,212,0.1)' : 'rgba(255,255,255,0.06)'}`,
-                  }}
-                >
-                  <Box sx={{ minWidth: 140 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: d.historical ? '#a8bcd4' : '#fff', fontSize: '0.82rem' }}>
-                        {d.dateLabel}
-                      </Typography>
-                      {d.historical && (
-                        <Chip label="archived" size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(168,188,212,0.1)', color: 'rgba(168,188,212,0.6)' }} />
-                      )}
-                    </Box>
-                    <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.65rem' }}>
-                      {d.count} channel{d.count !== 1 ? 's' : ''} · {d.hours.toFixed(1)} hrs total
-                      {d.historical && d.label ? ` · ${d.label}` : ''}
-                    </Typography>
-                  </Box>
-
-                  <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap', flex: 1 }}>
-                    {[
-                      { label: 'Storage',   rate: '$5/hr',  val: d.storage },
-                      { label: 'Ingestion', rate: '$8/hr',  val: d.ingestion },
-                      { label: 'Playout',   rate: '$6/hr',  val: d.playout },
-                    ].map(item => (
-                      <Box key={item.label}>
-                        <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>
-                          {item.label} <Box component="span" sx={{ color: 'rgba(168,188,212,0.4)' }}>({item.rate})</Box>
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 600, fontSize: '0.75rem' }}>
-                          {fmtUSD(item.val)}
-                        </Typography>
-                      </Box>
-                    ))}
-                    <Box sx={{ borderLeft: '1px solid rgba(255,255,255,0.08)', pl: 2.5 }}>
-                      <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>Fixed total</Typography>
-                      <Typography variant="caption" sx={{ color: AP.accent, fontWeight: 700, fontSize: '0.75rem' }}>{fmtUSD(d.total)}</Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.6)', fontSize: '0.62rem', display: 'block' }}>CDN</Typography>
-                      <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.75rem' }}>variable</Typography>
-                    </Box>
-                  </Box>
-
-                  {d.historical && (
-                    <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
-                      <Tooltip title="Edit">
-                        <IconButton size="small" onClick={() => onEditRecord(d.id)} sx={{ color: 'rgba(168,188,212,0.5)', '&:hover': { color: '#fff' } }}>
-                          <EditIcon sx={{ fontSize: 14 }} />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Remove">
-                        <IconButton size="small" onClick={() => onDeleteRecord(d.id, d.dateLabel)} sx={{ color: 'rgba(168,188,212,0.5)', '&:hover': { color: '#f44336' } }}>
-                          <DeleteIcon sx={{ fontSize: 14 }} />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  )}
-                </Box>
-              ))}
-
-              {allDays.length > 1 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5, pt: 0.5 }}>
-                  <Typography variant="caption" sx={{ color: '#a8bcd4', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em' }}>
-                    TOTAL FIXED
-                  </Typography>
-                  <Typography sx={{ color: AP.accent, fontWeight: 700, fontSize: '1rem', fontFamily: "'Bayon', sans-serif", letterSpacing: '0.04em' }}>
-                    {fmtUSD(summaryTotal)}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.65rem' }}>+ CDN</Typography>
-                </Box>
-              )}
-            </Stack>
+                ))}
+              </TableBody>
+            </Table>
           </Box>
-        )}
-      </Paper>
+        </Paper>
+      )}
+
+      {/* ── Pricing footnote ──────────────────────────────────── */}
+      {cdnPricing && (
+        <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.35)', fontSize: '0.65rem', textAlign: 'right' }}>
+          Rates: ${cdnPricing.feed_rate_per_hr}/hr per feed · ${cdnPricing.cdn_rate_per_gb}/GB CDN · {cdnPricing.gb_per_50_min} GB per 50 min
+          {Object.keys(cdnPricing.channel_overrides || {}).length > 0 && ' · Per-channel overrides active'}
+        </Typography>
+      )}
     </Box>
   )
 }
@@ -2525,10 +2390,8 @@ function Dashboard({ token, onLogout }) {
           <CostsPage
             tournaments={tournaments}
             channels={channels}
-            costRecords={costRecords}
-            onOpenCostDialog={() => setCostRecordDialog({ open: true, initial: null })}
-            onEditRecord={id => setCostRecordDialog({ open: true, initial: costRecords.find(r => r.id === id) })}
-            onDeleteRecord={deleteCostRecord}
+            cdnRecords={cdnRecords}
+            cdnPricing={cdnPricing}
           />
         )}
 
