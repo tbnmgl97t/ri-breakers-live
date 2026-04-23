@@ -11,11 +11,16 @@ set -euo pipefail
 EDGE_CONFIG_ID="${EDGE_CONFIG_ID:-ecfg_fb8yhochxnnx4uimnv7vm9hunzg9}"
 TOKEN="${VERCEL_API_TOKEN:?VERCEL_API_TOKEN is required}"
 
-# Guard: refuse to write to the prod store
+# Guard: refuse to write to the prod store unless explicitly overridden
 PROD_EC_ID="ecfg_klyq8hjj2xsoc0aze4ov44kjiecm"
-if [[ "$EDGE_CONFIG_ID" == "$PROD_EC_ID" ]]; then
-  echo "[seed] ✗ Refusing to seed production Edge Config. Exiting."
+FORCE_SEED="${FORCE_SEED:-}"
+if [[ "$EDGE_CONFIG_ID" == "$PROD_EC_ID" && -z "$FORCE_SEED" ]]; then
+  echo "[seed] ✗ Refusing to seed production Edge Config."
+  echo "[seed]   To force, re-run with FORCE_SEED=1"
   exit 1
+fi
+if [[ "$EDGE_CONFIG_ID" == "$PROD_EC_ID" ]]; then
+  echo "[seed] ⚠  FORCE_SEED set — writing to production Edge Config"
 fi
 
 echo "[seed] Target: $EDGE_CONFIG_ID"
