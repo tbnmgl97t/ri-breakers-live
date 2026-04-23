@@ -945,9 +945,13 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
       .catch(() => {})
   }, [open, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const ingestDebounceRef = useRef(null)
   useEffect(() => {
     if (!open) return
-    loadIngestPoints()
+    // Debounce: wait until user stops changing time fields before hitting the API
+    clearTimeout(ingestDebounceRef.current)
+    ingestDebounceRef.current = setTimeout(() => loadIngestPoints(), 600)
+    return () => clearTimeout(ingestDebounceRef.current)
   }, [ingestFormat, startDate, startTime, endDate, endTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function loadIngestPoints() {
@@ -955,13 +959,19 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
     const startUtc = toUtcIso(startDate, fromTimeInput(startTime))
     const endUtc   = toUtcIso(endDate, fromTimeInput(endTime))
     setLoadingPoints(true)
-    setIngestPointId('')
+    // Don't reset ingestPointId or clear the list here — keep the current UI
+    // stable while the new fetch is in flight to prevent layout jumps
     let url = `/api/ingest-points?ingest_format=${fmt}`
     if (startUtc) url += `&start_date=${encodeURIComponent(startUtc)}`
     if (endUtc)   url += `&end_date=${encodeURIComponent(endUtc)}`
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(data => setIngestPoints(data.ingest_points || []))
+      .then(data => {
+        const pts = data.ingest_points || []
+        setIngestPoints(pts)
+        // Only reset the selection if the previously chosen point is no longer available
+        setIngestPointId(prev => pts.find(p => p.id === prev) ? prev : '')
+      })
       .catch(() => setIngestPoints([]))
       .finally(() => setLoadingPoints(false))
   }
