@@ -355,35 +355,83 @@ function LoginScreen({ onLogin }) {
 // ─── Event drawer (create / edit) ─────────────────────────────────────────────
 
 const EMPTY_TOURNAMENT = { name: '', location: '' }
+const EMPTY_DRAFT_SESSION = () => ({
+  _key: Date.now() + Math.random(),
+  label: '', date: '', start_time: '8:00 AM', end_time: '5:00 PM', tz: 'ET', streams: [],
+})
 
 function EventDrawer({ open, initial, onClose, onSave }) {
-  const [form, setForm] = useState(EMPTY_TOURNAMENT)
-  const [saving, setSaving] = useState(false)
+  const [form,        setForm]        = useState(EMPTY_TOURNAMENT)
+  const [sessions,    setSessions]    = useState([])
+  const [expandedIdx, setExpandedIdx] = useState(null)
+  const [saving,      setSaving]      = useState(false)
 
   useEffect(() => {
     setForm(initial ? { name: initial.name || '', location: initial.location || '' } : EMPTY_TOURNAMENT)
+    setSessions(initial?.days?.length
+      ? initial.days.map(d => ({
+          _key:        d.id || Math.random(),
+          _existingId: d.id,
+          label:       d.label      || '',
+          date:        d.date       || '',
+          start_time:  d.start_time || '8:00 AM',
+          end_time:    d.end_time   || '5:00 PM',
+          tz:          'ET',
+          streams:     getSessionStreams(d),
+        }))
+      : [])
+    setExpandedIdx(null)
   }, [initial, open])
 
-  function set(field) {
-    return e => setForm(f => ({ ...f, [field]: e.target.value }))
+  const setField = field => e => setForm(f => ({ ...f, [field]: e.target.value }))
+
+  function addSession() {
+    const s = EMPTY_DRAFT_SESSION()
+    setSessions(prev => [...prev, s])
+    setExpandedIdx(sessions.length) // expand the new one
+  }
+  function removeSession(idx) {
+    setSessions(s => s.filter((_, i) => i !== idx))
+    setExpandedIdx(x => x === idx ? null : x > idx ? x - 1 : x)
+  }
+  function updateSession(idx, field, val) {
+    setSessions(s => s.map((sess, i) => i === idx ? { ...sess, [field]: val } : sess))
+  }
+  function addStream(sIdx) {
+    setSessions(s => s.map((sess, i) => i !== sIdx ? sess : {
+      ...sess, streams: [...sess.streams, { id: Date.now(), name: `Stream ${sess.streams.length + 1}`, url: '' }]
+    }))
+  }
+  function removeStream(sIdx, stIdx) {
+    setSessions(s => s.map((sess, i) => i !== sIdx ? sess : {
+      ...sess, streams: sess.streams.filter((_, si) => si !== stIdx)
+    }))
+  }
+  function updateStream(sIdx, stIdx, field, val) {
+    setSessions(s => s.map((sess, i) => i !== sIdx ? sess : {
+      ...sess, streams: sess.streams.map((st, si) => si !== stIdx ? st : { ...st, [field]: val })
+    }))
   }
 
   async function handleSave() {
     setSaving(true)
     try {
-      await onSave(form)
+      await onSave({ ...form, sessions })
       onClose()
     } finally {
       setSaving(false)
     }
   }
 
+  const sectionLabel = { fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', color: AP.muted, mb: 0.75 }
+
   return (
     <Drawer anchor="right" open={open} onClose={onClose}
-      PaperProps={{ sx: { width: 480, bgcolor: '#0d1117', borderLeft: '1px solid rgba(255,255,255,0.07)' } }}
+      PaperProps={{ sx: { width: 560, bgcolor: '#0d1117', borderLeft: '1px solid rgba(255,255,255,0.07)' } }}
     >
-      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {/* Header */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2.5, flexShrink: 0 }}>
           <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', flex: 1 }}>
             {initial?.id ? 'Edit Event' : 'Add Event'}
           </Typography>
@@ -391,19 +439,123 @@ function EventDrawer({ open, initial, onClose, onSave }) {
             <CloseIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </Box>
-        <Divider sx={{ borderColor: 'rgba(255,255,255,0.07)' }} />
-        <TextField label="Event Name" value={form.name} onChange={set('name')} size="small" fullWidth autoFocus
-          placeholder="e.g. Key West Classic" />
-        <TextField label="Location" value={form.location} onChange={set('location')} size="small" fullWidth
-          placeholder="e.g. Key West, FL" />
-        <Box sx={{ mt: 'auto', display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+        <Divider sx={{ borderColor: 'rgba(255,255,255,0.07)', mb: 2.5, flexShrink: 0 }} />
+
+        {/* Scrollable body */}
+        <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2.5, pr: 0.5 }}>
+
+          {/* Event details */}
+          <Box>
+            <Typography sx={sectionLabel}>EVENT DETAILS</Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <TextField label="Event Name" value={form.name} onChange={setField('name')} size="small" fullWidth autoFocus placeholder="e.g. Key West Classic" />
+              <TextField label="Location"   value={form.location} onChange={setField('location')} size="small" fullWidth placeholder="e.g. Key West, FL" />
+            </Box>
+          </Box>
+
+          <Divider sx={{ borderColor: 'rgba(255,255,255,0.07)' }} />
+
+          {/* Sessions */}
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Typography sx={sectionLabel}>SESSIONS ({sessions.length})</Typography>
+              <Button size="small" startIcon={<AddIcon sx={{ fontSize: '13px !important' }} />} onClick={addSession}
+                sx={{ fontSize: '0.68rem', color: AP.accent, py: 0.25, minWidth: 0, '&:hover': { bgcolor: AP.accentDim } }}>
+                Add Session
+              </Button>
+            </Box>
+
+            {sessions.length === 0 && (
+              <Box sx={{ textAlign: 'center', py: 3, border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 1.5 }}>
+                <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)' }}>
+                  No sessions yet — click Add Session to build out the schedule
+                </Typography>
+              </Box>
+            )}
+
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {sessions.map((sess, sIdx) => {
+                const isOpen = expandedIdx === sIdx
+                return (
+                  <Box key={sess._key} sx={{ border: `1px solid ${isOpen ? AP.accentBdr : 'rgba(255,255,255,0.09)'}`, borderRadius: 1.5, overflow: 'hidden', transition: 'border-color 0.15s' }}>
+                    {/* Session header row */}
+                    <Box
+                      onClick={() => setExpandedIdx(isOpen ? null : sIdx)}
+                      sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1, cursor: 'pointer', bgcolor: isOpen ? AP.accentDim : 'transparent', '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' } }}
+                    >
+                      <IconButton size="small" sx={{ color: AP.accent, p: 0, flexShrink: 0 }}>
+                        {isOpen ? <ExpandLessIcon sx={{ fontSize: 16 }} /> : <ExpandMoreIcon sx={{ fontSize: 16 }} />}
+                      </IconButton>
+                      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: sess.label ? '#fff' : AP.muted, fontSize: '0.82rem', minWidth: 60 }}>
+                          {sess.label || `Session ${sIdx + 1}`}
+                        </Typography>
+                        {sess.date && (
+                          <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.7rem' }}>
+                            {new Date(sess.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </Typography>
+                        )}
+                        {sess.streams.length > 0 && (
+                          <Typography variant="caption" sx={{ color: AP.accent, fontSize: '0.65rem' }}>
+                            {sess.streams.length} stream{sess.streams.length !== 1 ? 's' : ''}
+                          </Typography>
+                        )}
+                      </Box>
+                      <IconButton size="small" onClick={e => { e.stopPropagation(); removeSession(sIdx) }} sx={{ color: AP.muted, '&:hover': { color: '#f44336' }, p: 0.25 }}>
+                        <CloseIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Box>
+
+                    {/* Session body */}
+                    <Collapse in={isOpen}>
+                      <Box sx={{ px: 1.5, pb: 1.5, pt: 0.5, display: 'flex', flexDirection: 'column', gap: 1.5, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                        <Box sx={{ display: 'flex', gap: 1.5 }}>
+                          <TextField size="small" label="Label" value={sess.label} onChange={e => updateSession(sIdx, 'label', e.target.value)} placeholder="e.g. Day 1" sx={{ flex: 1 }} />
+                          <TextField size="small" label="Date" type="date" value={sess.date} onChange={e => updateSession(sIdx, 'date', e.target.value)} InputLabelProps={{ shrink: true }} sx={{ flex: 1 }} />
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 1.5 }}>
+                          <TextField size="small" label="Start" value={sess.start_time} onChange={e => updateSession(sIdx, 'start_time', e.target.value)} placeholder="8:00 AM" sx={{ flex: 1 }} />
+                          <TextField size="small" label="End"   value={sess.end_time}   onChange={e => updateSession(sIdx, 'end_time',   e.target.value)} placeholder="5:00 PM" sx={{ flex: 1 }} />
+                          <TextField size="small" label="TZ"    value={sess.tz}          onChange={e => updateSession(sIdx, 'tz',         e.target.value)} placeholder="ET"       sx={{ width: 72 }} />
+                        </Box>
+
+                        {/* Streams */}
+                        <Box>
+                          <Typography sx={{ ...sectionLabel, mb: 0.5 }}>STREAMS</Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                            {sess.streams.map((st, stIdx) => (
+                              <Box key={st.id ?? stIdx} sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 1, px: 1, py: 0.75 }}>
+                                <Typography variant="caption" sx={{ color: AP.muted, fontWeight: 700, minWidth: 18, fontSize: '0.65rem' }}>#{stIdx + 1}</Typography>
+                                <TextField size="small" placeholder="Stream name" value={st.name} onChange={e => updateStream(sIdx, stIdx, 'name', e.target.value)}
+                                  sx={{ width: 130, '& input': { fontSize: '0.75rem', py: '4px' }, '& .MuiOutlinedInput-root': { height: 28 } }} />
+                                <TextField size="small" placeholder="HLS / RTMP URL" value={st.url} onChange={e => updateStream(sIdx, stIdx, 'url', e.target.value)}
+                                  sx={{ flex: 1, '& input': { fontSize: '0.7rem', fontFamily: 'monospace', py: '4px' }, '& .MuiOutlinedInput-root': { height: 28 } }} />
+                                <IconButton size="small" onClick={() => removeStream(sIdx, stIdx)} sx={{ color: AP.muted, '&:hover': { color: '#f44336' }, p: 0.25, flexShrink: 0 }}>
+                                  <CloseIcon sx={{ fontSize: 13 }} />
+                                </IconButton>
+                              </Box>
+                            ))}
+                          </Box>
+                          <Button size="small" startIcon={<AddIcon sx={{ fontSize: '12px !important' }} />} onClick={() => addStream(sIdx)}
+                            disabled={sess.streams.length >= 10}
+                            sx={{ mt: 0.75, fontSize: '0.68rem', color: AP.accent, py: 0.25, '&:hover': { bgcolor: AP.accentDim } }}>
+                            Add Stream
+                          </Button>
+                        </Box>
+                      </Box>
+                    </Collapse>
+                  </Box>
+                )
+              })}
+            </Box>
+          </Box>
+        </Box>
+
+        {/* Footer */}
+        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', pt: 2, borderTop: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, mt: 1 }}>
           <Button onClick={onClose} sx={{ color: '#a8bcd4' }}>Cancel</Button>
-          <Button
-            onClick={handleSave}
-            disabled={!form.name || saving}
-            variant="contained"
-            sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov } }}
-          >
+          <Button onClick={handleSave} disabled={!form.name || saving} variant="contained"
+            sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov } }}>
             {saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Save Event'}
           </Button>
         </Box>
@@ -2154,17 +2306,42 @@ function Dashboard({ token, onLogout }) {
 
   // ── Tournament CRUD ──────────────────────────────────────────────────────────
 
-  async function saveTournament(form) {
+  async function saveTournament({ sessions, ...eventForm }) {
     const isEdit = !!tournamentDialog.initial?.id
     const res = await fetch('/api/tournaments', {
       method: isEdit ? 'PUT' : 'POST',
       headers: authHeader(token),
-      body: JSON.stringify(isEdit ? { id: tournamentDialog.initial.id, ...form } : form),
+      body: JSON.stringify(isEdit ? { id: tournamentDialog.initial.id, ...eventForm } : eventForm),
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error)
+
+    // Save any inline sessions
+    if (sessions?.length) {
+      for (const sess of sessions) {
+        const { _key, _existingId, ...sessData } = sess
+        // Skip sessions with no label or date
+        if (!sessData.label && !sessData.date) continue
+        const streams = (sessData.streams || []).filter(s => s.url || s.name)
+        const sessRes = await fetch('/api/tournament-days', {
+          method: _existingId ? 'PUT' : 'POST',
+          headers: authHeader(token),
+          body: JSON.stringify({
+            tournament_id: data.id,
+            ...(_existingId ? { id: _existingId } : {}),
+            ...sessData,
+            streams,
+          }),
+        })
+        if (!sessRes.ok) {
+          const errData = await sessRes.json().catch(() => ({}))
+          throw new Error(errData.error || 'Failed to save a session')
+        }
+      }
+    }
+
     await fetchTournaments()
-    showSnack(isEdit ? `Tournament "${data.name}" updated` : `Tournament "${data.name}" created`)
+    showSnack(isEdit ? `Event "${data.name}" updated` : `Event "${data.name}" created`)
   }
 
   async function deleteTournament(tournament) {
