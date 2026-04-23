@@ -1783,17 +1783,8 @@ function TenantSettingsPanel({ token }) {
 
 // ─── CDN read-only panel (tenant admin view) ──────────────────────────────────
 
-function CdnReadOnlyPanel({ records = [], pricing, tournaments = [] }) {
+function CdnReadOnlyPanel({ records = [], channels = [], pricing, tournaments = [] }) {
   const [monthFilter, setMonthFilter] = useState('all')
-
-  const months = [...new Set(records.map(r => r.date?.slice(0, 7)).filter(Boolean))].sort().reverse()
-
-  const filtered = monthFilter === 'all'
-    ? records
-    : records.filter(r => r.date?.startsWith(monthFilter))
-
-  const subtotal    = filtered.reduce((s, r) => s + (r.cost_total   || 0), 0)
-  const totalGB     = filtered.reduce((s, r) => s + (r.gb_delivered || 0), 0)
 
   function fmtUSD(n) { return '$' + Number(n || 0).toFixed(2) }
   function fmtGB(n)  { return Number(n || 0).toFixed(3) + ' GB' }
@@ -1805,6 +1796,70 @@ function CdnReadOnlyPanel({ records = [], pricing, tournaments = [] }) {
     if (!yyyymm) return ''
     const [y, m] = yyyymm.split('-')
     return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  }
+  function chDate(ch) {
+    return new Date(ch.stream_start).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  }
+  function streamHours(ch) {
+    const s = new Date(ch.stream_start)
+    const e = ch.stream_end ? new Date(ch.stream_end) : new Date()
+    return Math.max(0, (e - s) / 3_600_000)
+  }
+
+  // Build unified feed rows from JW channels + logged cdn records
+  // Each JW channel that has run = one row, with status: live | pending | logged
+  const channelRows = channels
+    .filter(ch => ch.stream_start)
+    .map(ch => {
+      const date   = chDate(ch)
+      const record = records.find(r => r.channel_id === ch.id && r.date === date)
+      const isLive = !ch.stream_end || new Date(ch.stream_end) > new Date()
+      return {
+        key:         `ch-${ch.id}`,
+        date,
+        channel_id:  ch.id,
+        channel_name: ch.name || ch.id,
+        label:       ch.name || ch.id,
+        stream_hours: streamHours(ch),
+        isLive,
+        status:      record ? 'logged' : isLive ? 'live' : 'pending',
+        record,      // cdn_record if logged
+      }
+    })
+    .sort((a, b) => b.date.localeCompare(a.date))
+
+  // Also include cdn records whose channel is no longer in JW (historical)
+  const channelIds = new Set(channelRows.map(r => r.channel_id + '_' + r.date))
+  const orphanRecords = records.filter(r => !channelIds.has(r.channel_id + '_' + r.date))
+
+  // Build combined list for the selected month
+  const allRows = [
+    ...channelRows.map(r => ({ type: 'channel', ...r })),
+    ...orphanRecords.map(r => ({ type: 'record', ...r, status: 'logged', key: `rec-${r.id}` })),
+  ].filter(r => monthFilter === 'all' || r.date?.startsWith(monthFilter))
+
+  const months = [...new Set(
+    [...channelRows.map(r => r.date?.slice(0, 7)), ...records.map(r => r.date?.slice(0, 7))].filter(Boolean)
+  )].sort().reverse()
+
+  const loggedRows = allRows.filter(r => r.status === 'logged')
+  const totalCost  = loggedRows.reduce((s, r) => s + (r.record?.cost_total || r.cost_total || 0), 0)
+  const totalFeed  = loggedRows.reduce((s, r) => s + (r.record?.cost_feed  || r.cost_feed  || 0), 0)
+  const totalCdn   = loggedRows.reduce((s, r) => s + (r.record?.cost_cdn   || r.cost_cdn   || 0), 0)
+  const pendingCount = allRows.filter(r => r.status === 'pending').length
+
+  const statusChip = (status) => {
+    const cfg = {
+      live:    { label: 'LIVE',    bg: 'rgba(16,185,129,0.15)',  color: '#10b981', border: 'rgba(16,185,129,0.4)' },
+      pending: { label: 'PENDING', bg: 'rgba(245,158,11,0.12)',  color: '#f59e0b', border: 'rgba(245,158,11,0.4)' },
+      logged:  { label: 'LOGGED',  bg: AP.accentDim,             color: AP.accent, border: AP.accentBdr },
+    }[status] || {}
+    return (
+      <Chip label={cfg.label} size="small" sx={{
+        fontSize: '0.58rem', height: 16, fontWeight: 700, letterSpacing: '0.05em',
+        bgcolor: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
+      }} />
+    )
   }
 
   return (
@@ -1818,61 +1873,54 @@ function CdnReadOnlyPanel({ records = [], pricing, tournaments = [] }) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <LiveTvIcon sx={{ color: AP.accent, fontSize: 18 }} />
           <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
-            CDN USAGE
+            FEEDS & CDN COSTS
           </Typography>
-          <Chip label="READ-ONLY" size="small"
-            sx={{ fontSize: '0.6rem', height: 18, bgcolor: AP.accentDim, color: AP.accent, border: `1px solid ${AP.accentBdr}` }} />
+          {pendingCount > 0 && (
+            <Chip label={`${pendingCount} PENDING`} size="small"
+              sx={{ fontSize: '0.6rem', height: 18, bgcolor: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)' }} />
+          )}
         </Box>
         <TextField
           select size="small" value={monthFilter}
           onChange={e => setMonthFilter(e.target.value)}
           sx={{ minWidth: 160, '& .MuiInputBase-root': { fontSize: '0.75rem', height: 28 } }}
         >
-          <MenuItem value="all">All months</MenuItem>
+          <MenuItem value="all">All time</MenuItem>
           {months.map(mk => <MenuItem key={mk} value={mk}>{monthLabel(mk)}</MenuItem>)}
         </TextField>
       </Box>
 
       {/* Summary row */}
-      {filtered.length > 0 && (
+      {loggedRows.length > 0 && (
         <Box sx={{
           px: 2, py: 1, display: 'flex', gap: 3, flexWrap: 'wrap',
           borderBottom: '1px solid rgba(255,255,255,0.05)',
           bgcolor: 'rgba(99,102,241,0.04)',
         }}>
-          <Box>
-            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Total Cost
-            </Typography>
-            <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: AP.accent, lineHeight: 1.2 }}>
-              {fmtUSD(subtotal)}
-            </Typography>
-          </Box>
-          <Box>
-            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              GB Delivered
-            </Typography>
-            <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: AP.text, lineHeight: 1.2 }}>
-              {fmtGB(totalGB)}
-            </Typography>
-          </Box>
-          <Box>
-            <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Feed Records
-            </Typography>
-            <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: AP.text, lineHeight: 1.2 }}>
-              {filtered.length}
-            </Typography>
-          </Box>
+          {[
+            { label: 'Total Cost',  value: fmtUSD(totalCost), accent: true },
+            { label: 'Feed Fees',   value: fmtUSD(totalFeed) },
+            { label: 'CDN Cost',    value: fmtUSD(totalCdn) },
+            { label: 'Feeds',       value: `${loggedRows.length} logged${pendingCount > 0 ? ` · ${pendingCount} pending` : ''}` },
+          ].map(({ label, value, accent }) => (
+            <Box key={label}>
+              <Typography variant="caption" sx={{ color: AP.muted, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {label}
+              </Typography>
+              <Typography sx={{ fontSize: '1.1rem', fontWeight: 700, color: accent ? AP.accent : AP.text, lineHeight: 1.2 }}>
+                {value}
+              </Typography>
+            </Box>
+          ))}
         </Box>
       )}
 
-      {/* Table */}
-      {filtered.length === 0 ? (
+      {/* Feed table */}
+      {allRows.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 4 }}>
           <LiveTvIcon sx={{ color: 'rgba(168,188,212,0.2)', fontSize: 36, mb: 1 }} />
           <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.5)' }}>
-            No CDN records {monthFilter !== 'all' ? `for ${monthLabel(monthFilter)}` : 'yet'}.
+            No feeds {monthFilter !== 'all' ? `for ${monthLabel(monthFilter)}` : 'yet'}.
           </Typography>
         </Box>
       ) : (
@@ -1880,34 +1928,42 @@ function CdnReadOnlyPanel({ records = [], pricing, tournaments = [] }) {
           <Table size="small">
             <TableHead>
               <TableRow>
-                {['Date', 'Label', 'Channel', 'GB Delivered', 'GB Ingested', 'GB Stored', 'Cost'].map(h => (
-                  <TableCell key={h} sx={{ color: AP.muted, fontSize: '0.7rem', fontWeight: 600 }}>{h}</TableCell>
+                {['Status', 'Date', 'Feed', 'Stream Hrs', 'GB Delivered', 'Feed Fee', 'CDN Cost', 'Total'].map(h => (
+                  <TableCell key={h} sx={{ color: AP.muted, fontSize: '0.7rem', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</TableCell>
                 ))}
               </TableRow>
             </TableHead>
             <TableBody>
-              {filtered.map(r => (
-                <TableRow key={r.id} hover>
-                  <TableCell sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtDate(r.date)}</TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem' }}>{r.label}</TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem' }}>
-                    <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{r.channel_name}</Typography>
-                    <Typography sx={{ fontSize: '0.65rem', color: AP.muted, fontFamily: 'monospace' }}>{r.channel_id}</Typography>
+              {allRows.map(row => {
+                const rec = row.record || (row.type === 'record' ? row : null)
+                return (
+                  <TableRow key={row.key} hover sx={{ opacity: row.status === 'pending' ? 0.7 : 1 }}>
+                    <TableCell>{statusChip(row.status)}</TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtDate(row.date)}</TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem' }}>
+                      <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{row.channel_name || row.label}</Typography>
+                      <Typography sx={{ fontSize: '0.65rem', color: AP.muted, fontFamily: 'monospace' }}>{row.channel_id}</Typography>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem' }}>
+                      {row.stream_hours != null ? `${Number(row.stream_hours).toFixed(2)}h` : '—'}
+                    </TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem' }}>{rec ? fmtGB(rec.gb_delivered) : '—'}</TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem' }}>{rec ? fmtUSD(rec.cost_feed) : '—'}</TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem' }}>{rec ? fmtUSD(rec.cost_cdn) : '—'}</TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem', fontWeight: rec ? 700 : 400, color: rec ? AP.accent : AP.muted }}>
+                      {rec ? fmtUSD(rec.cost_total) : row.status === 'pending' ? 'Awaiting CDN data' : row.status === 'live' ? 'In progress' : '—'}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+              {loggedRows.length > 0 && (
+                <TableRow sx={{ bgcolor: AP.accentDim }}>
+                  <TableCell colSpan={7} sx={{ fontSize: '0.75rem', fontWeight: 700, color: AP.muted }}>
+                    {monthFilter === 'all' ? 'Grand Total' : `${monthLabel(monthFilter)} Total`} ({loggedRows.length} logged)
                   </TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem' }}>{fmtGB(r.gb_delivered)}</TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem' }}>{fmtGB(r.gb_ingested)}</TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem' }}>{fmtGB(r.gb_stored)}</TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem', fontWeight: 700, color: AP.accent }}>{fmtUSD(r.cost_total)}</TableCell>
+                  <TableCell sx={{ fontSize: '0.85rem', fontWeight: 800, color: AP.accent }}>{fmtUSD(totalCost)}</TableCell>
                 </TableRow>
-              ))}
-              <TableRow sx={{ bgcolor: AP.accentDim }}>
-                <TableCell colSpan={6} sx={{ fontSize: '0.75rem', fontWeight: 700, color: AP.muted }}>
-                  {monthFilter === 'all' ? 'Grand Total' : `${monthLabel(monthFilter)} Total`}
-                </TableCell>
-                <TableCell sx={{ fontSize: '0.85rem', fontWeight: 800, color: AP.accent }}>
-                  {fmtUSD(subtotal)}
-                </TableCell>
-              </TableRow>
+              )}
             </TableBody>
           </Table>
         </Box>
@@ -1916,7 +1972,7 @@ function CdnReadOnlyPanel({ records = [], pricing, tournaments = [] }) {
       {pricing && (
         <Box sx={{ px: 2, py: 1, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
           <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.4)', fontSize: '0.65rem' }}>
-            Rates: ${pricing.ingestion_per_gb}/GB ingested · ${pricing.storage_per_gb}/GB stored · ${pricing.playout_per_gb}/GB delivered
+            Rates: ${pricing.feed_rate_per_hr}/hr per feed · ${pricing.cdn_rate_per_gb}/GB CDN · {pricing.gb_per_50_min} GB per 50 min
             {Object.keys(pricing.channel_overrides || {}).length > 0 && ' · Per-channel overrides active'}
           </Typography>
         </Box>
@@ -2220,7 +2276,7 @@ function Dashboard({ token, onLogout }) {
         {activeTab === 'settings' ? (
           <TenantSettingsPanel token={token} />
         ) : activeTab === 'cdn' ? (
-          <CdnReadOnlyPanel records={cdnRecords} pricing={cdnPricing} tournaments={tournaments} />
+          <CdnReadOnlyPanel records={cdnRecords} channels={channels} pricing={cdnPricing} tournaments={tournaments} />
         ) : activeTab === 'dashboard' ? (
           <>
             {/* ── Tournaments ──────────────────────── */}

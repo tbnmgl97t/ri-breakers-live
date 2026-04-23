@@ -405,7 +405,7 @@ function OverviewTab({ records, pricing, tournaments }) {
 // ─── Log from JW dialog ───────────────────────────────────────────────────────
 // Shows all JW feeds with stream hours pre-filled; only Minutes Delivered is entered.
 
-function LogFromJwDialog({ open, channels, tournaments, pricing, token, onClose, onSaved, showSnack }) {
+function LogFromJwDialog({ open, channels, records, tournaments, pricing, token, onClose, onSaved, showSnack }) {
   // minutes_delivered keyed by channel id
   const [minutesMap, setMinutesMap] = useState({})
   const [tournamentMap, setTournamentMap] = useState({})
@@ -417,6 +417,12 @@ function LogFromJwDialog({ open, channels, tournaments, pricing, token, onClose,
 
   // Only show channels that have actually run (have stream_start)
   const loggable = channels.filter(ch => ch.stream_start)
+
+  // Check if a channel already has a CDN record logged for its stream date
+  function existingRecord(ch) {
+    const date = new Date(ch.stream_start).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    return records.find(r => r.channel_id === ch.id && r.date === date) || null
+  }
 
   function streamHours(ch) {
     const start = new Date(ch.stream_start)
@@ -501,34 +507,53 @@ function LogFromJwDialog({ open, channels, tournaments, pricing, token, onClose,
               </TableHead>
               <TableBody>
                 {loggable.map(ch => {
-                  const hrs  = streamHours(ch)
-                  const cost = previewCost(ch)
+                  const hrs     = streamHours(ch)
+                  const cost    = previewCost(ch)
                   const hasMins = minutesMap[ch.id] !== undefined && minutesMap[ch.id] !== ''
+                  const logged  = existingRecord(ch)
                   return (
-                    <TableRow key={ch.id} hover sx={{ opacity: hasMins ? 1 : 0.6 }}>
+                    <TableRow key={ch.id} hover sx={{ opacity: logged ? 0.55 : hasMins ? 1 : 0.75 }}>
                       <TableCell sx={{ fontSize: '0.78rem' }}>
-                        <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{ch.name || ch.id}</Typography>
-                        <Typography sx={{ fontSize: '0.65rem', color: TP.muted, fontFamily: 'monospace' }}>{ch.id}</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                          <Box>
+                            <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{ch.name || ch.id}</Typography>
+                            <Typography sx={{ fontSize: '0.65rem', color: TP.muted, fontFamily: 'monospace' }}>{ch.id}</Typography>
+                          </Box>
+                          {logged && (
+                            <Chip label="LOGGED" size="small" sx={{
+                              fontSize: '0.58rem', height: 16, fontWeight: 700,
+                              bgcolor: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.4)',
+                            }} />
+                          )}
+                        </Box>
                       </TableCell>
                       <TableCell sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{fmtDate(streamDate(ch))}</TableCell>
                       <TableCell sx={{ fontSize: '0.78rem' }}>{hrs.toFixed(2)}h</TableCell>
                       <TableCell>
-                        <TextField select size="small" value={tournamentMap[ch.id] || ''}
-                          onChange={e => setTournamentMap(m => ({ ...m, [ch.id]: e.target.value }))}
-                          sx={{ minWidth: 140, '& .MuiInputBase-root': { fontSize: '0.75rem', height: 28 } }}>
-                          <MenuItem value="">— None —</MenuItem>
-                          {tournaments.map(t => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
-                        </TextField>
+                        {logged ? (
+                          <Typography sx={{ fontSize: '0.75rem', color: TP.muted }}>Already logged</Typography>
+                        ) : (
+                          <TextField select size="small" value={tournamentMap[ch.id] || ''}
+                            onChange={e => setTournamentMap(m => ({ ...m, [ch.id]: e.target.value }))}
+                            sx={{ minWidth: 140, '& .MuiInputBase-root': { fontSize: '0.75rem', height: 28 } }}>
+                            <MenuItem value="">— None —</MenuItem>
+                            {tournaments.map(t => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
+                          </TextField>
+                        )}
                       </TableCell>
                       <TableCell>
-                        <TextField type="number" size="small" placeholder="e.g. 2029"
-                          value={minutesMap[ch.id] ?? ''}
-                          onChange={e => setMinutesMap(m => ({ ...m, [ch.id]: e.target.value }))}
-                          inputProps={{ min: 0, step: 1 }}
-                          sx={{ width: 110, '& .MuiInputBase-root': { fontSize: '0.8rem', height: 32 } }} />
+                        {logged ? (
+                          <Typography sx={{ fontSize: '0.75rem', color: TP.muted }}>{Number(logged.minutes_delivered).toLocaleString()} min</Typography>
+                        ) : (
+                          <TextField type="number" size="small" placeholder="e.g. 2029"
+                            value={minutesMap[ch.id] ?? ''}
+                            onChange={e => setMinutesMap(m => ({ ...m, [ch.id]: e.target.value }))}
+                            inputProps={{ min: 0, step: 1 }}
+                            sx={{ width: 110, '& .MuiInputBase-root': { fontSize: '0.8rem', height: 32 } }} />
+                        )}
                       </TableCell>
-                      <TableCell sx={{ fontSize: '0.78rem', fontWeight: 700, color: hasMins ? TP.accent : TP.muted }}>
-                        {hasMins ? `$${cost.total.toFixed(2)}` : '—'}
+                      <TableCell sx={{ fontSize: '0.78rem', fontWeight: 700, color: logged ? '#10b981' : hasMins ? TP.accent : TP.muted }}>
+                        {logged ? `$${logged.cost_total?.toFixed(2)}` : hasMins ? `$${cost.total.toFixed(2)}` : '—'}
                       </TableCell>
                     </TableRow>
                   )
@@ -724,6 +749,7 @@ function CdnRecordsTab({ records, tournaments, pricing, channels, token, onRefre
       <LogFromJwDialog
         open={jwDialog}
         channels={channels}
+        records={records}
         tournaments={tournaments}
         pricing={pricing}
         token={token}
