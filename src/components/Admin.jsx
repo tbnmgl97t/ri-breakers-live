@@ -2306,7 +2306,7 @@ function Dashboard({ token, onLogout }) {
                 background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
               }}>
                 <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
-                  JW LIVE CHANNELS
+                  LIVE STREAMS
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                   <Tooltip title="Refresh channels">
@@ -2352,24 +2352,43 @@ function Dashboard({ token, onLogout }) {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {[...channels].sort((a, b) => {
-                      if (!a.stream_start && !b.stream_start) return (a.name || '').localeCompare(b.name || '')
-                      if (!a.stream_start) return 1
-                      if (!b.stream_start) return -1
-                      const timeDiff = new Date(b.stream_start) - new Date(a.stream_start)
-                      if (timeDiff !== 0) return timeDiff
-                      return (a.name || '').localeCompare(b.name || '')
-                    }).map(ch => {
-                      const isLive = ch.status === 'active'
+                    {(() => {
                       const STATUS_LABELS = {
                         requested:  'Scheduled',
                         scheduled:  'Scheduled',
                         creating:   'Creating',
                         active:     'Live',
-                        idle:       'Idle',
+                        idle:       'Past',
                         stopping:   'Stopping',
                         destroying: 'Destroying',
                       }
+                      const sortByStart = (a, b) => {
+                        if (!a.stream_start && !b.stream_start) return (a.name || '').localeCompare(b.name || '')
+                        if (!a.stream_start) return 1
+                        if (!b.stream_start) return -1
+                        const timeDiff = new Date(b.stream_start) - new Date(a.stream_start)
+                        return timeDiff !== 0 ? timeDiff : (a.name || '').localeCompare(b.name || '')
+                      }
+                      const live      = channels.filter(ch => ch.status === 'active').sort(sortByStart)
+                      const scheduled = channels.filter(ch => ['requested','scheduled','creating'].includes(ch.status?.toLowerCase())).sort(sortByStart)
+                      const past      = channels.filter(ch => ['idle','stopping','destroying'].includes(ch.status?.toLowerCase())).sort(sortByStart)
+
+                      const sectionLabel = (label, count) => (
+                        <TableRow key={`sec-${label}`}>
+                          <TableCell colSpan={7} sx={{
+                            pt: 1.5, pb: 0.5, px: 2,
+                            borderBottom: '1px solid rgba(255,255,255,0.05)',
+                            bgcolor: 'transparent',
+                          }}>
+                            <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', color: AP.muted }}>
+                              {label} <Box component="span" sx={{ ml: 0.5, opacity: 0.5 }}>({count})</Box>
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      )
+
+                      const renderRow = ch => {
+                      const isLive = ch.status === 'active'
                       const statusLabel  = STATUS_LABELS[ch.status?.toLowerCase()] || ch.status || 'Idle'
                       const spinupStatus = getSpinupStatus(ch)
                       const fmtTime = iso => {
@@ -2470,7 +2489,14 @@ function Dashboard({ token, onLogout }) {
                           </TableCell>
                         </TableRow>
                       )
-                    })}
+                      }
+
+                      return [
+                        live.length > 0      && [sectionLabel('LIVE', live.length),      ...live.map(renderRow)],
+                        scheduled.length > 0 && [sectionLabel('SCHEDULED', scheduled.length), ...scheduled.map(renderRow)],
+                        past.length > 0      && [sectionLabel('PAST', past.length),       ...past.map(renderRow)],
+                      ]
+                    })()}
                   </TableBody>
                 </Table>
               )}
