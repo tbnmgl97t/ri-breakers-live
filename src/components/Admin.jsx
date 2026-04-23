@@ -1280,11 +1280,16 @@ function TournamentCostCard({ tournament, cdnRecords = [] }) {
                                         <Typography sx={{ fontSize: '0.62rem', color: AP.muted, fontFamily: 'monospace' }}>{f.channel_id}</Typography>
                                       </TableCell>
                                       <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{Number(f.stream_hours).toFixed(2)}h</TableCell>
-                                      <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{fmtGB(f.gb_delivered)}</TableCell>
+                                      <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{Number(f.minutes_delivered) > 0 ? fmtGB(f.gb_delivered) : '—'}</TableCell>
                                       <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{fmtUSD(f.cost_feed)}</TableCell>
-                                      <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{fmtUSD(f.cost_cdn)}</TableCell>
+                                      <TableCell sx={{ fontSize: '0.75rem' }}>
+                                        {Number(f.minutes_delivered) > 0
+                                          ? <span style={{ color: AP.muted }}>{fmtUSD(f.cost_cdn)}</span>
+                                          : <Chip label="Pending" size="small" sx={{ height: 16, fontSize: '0.58rem', fontWeight: 700, bgcolor: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)' }} />
+                                        }
+                                      </TableCell>
                                       <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: AP.accent }}>{fmtUSD(f.cost_total)}</TableCell>
-                                      <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{Number(f.minutes_delivered).toLocaleString()}</TableCell>
+                                      <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{Number(f.minutes_delivered) > 0 ? Number(f.minutes_delivered).toLocaleString() : '—'}</TableCell>
                                     </TableRow>
                                   ))}
                                 </TableBody>
@@ -1479,7 +1484,7 @@ function CostsPage({ tournaments, channels, cdnRecords = [], cdnPricing }) {
       {/* ── Pricing footnote ──────────────────────────────────── */}
       {cdnPricing && (
         <Typography variant="caption" sx={{ color: 'rgba(168,188,212,0.35)', fontSize: '0.65rem', textAlign: 'right' }}>
-          Rates: ${cdnPricing.feed_rate_per_hr}/hr per feed · ${cdnPricing.cdn_rate_per_gb}/GB CDN · {cdnPricing.gb_per_50_min} GB per 50 min
+          Rates: ${cdnPricing.feed_rate_per_hr}/hr per feed · ${cdnPricing.cdn_rate_per_gb}/GB CDN
           {Object.keys(cdnPricing.channel_overrides || {}).length > 0 && ' · Per-channel overrides active'}
         </Typography>
       )}
