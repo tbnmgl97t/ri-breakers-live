@@ -187,7 +187,7 @@ function CdnRecordDialog({ open, initial, tournaments, pricing, onClose, onSave 
       <DialogTitle sx={{ borderBottom: `1px solid ${TP.border}`, py: 1.5, px: 2, fontSize: '0.95rem', fontWeight: 700 }}>
         {initial ? 'Edit CDN Record' : 'Add CDN Record'}
       </DialogTitle>
-      <DialogContent sx={{ pt: 2, pb: 1, display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+      <DialogContent sx={{ pt: '20px !important', pb: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <TextField label="Date" type="date" value={form.date} onChange={set('date')}
             size="small" fullWidth InputLabelProps={{ shrink: true }} />
