@@ -1061,7 +1061,7 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
               onClick={() => onAddDay(tournament)}
               sx={{ fontSize: '0.7rem', py: 0.3, px: 1, borderColor: AP.accentBdr, color: AP.accent, '&:hover': { borderColor: AP.accent } }}
             >
-              + Add Session
+              Add Session
             </Button>
           </Tooltip>
           <Tooltip title="Edit event">
