@@ -465,9 +465,9 @@ function EventDrawer({ open, initial, onClose, onSave }) {
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}
-      PaperProps={{ sx: { width: 560, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)', overflow: 'hidden' } }}
+      PaperProps={{ sx: { width: 560, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)', overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}
     >
-      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         {/* Header */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2.5, flexShrink: 0 }}>
           <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', flex: 1 }}>
@@ -657,9 +657,9 @@ function SessionDrawer({ open, initial, tournament, channels, onClose, onSaved, 
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}
-      PaperProps={{ sx: { width: 520, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)', overflow: 'hidden' } }}
+      PaperProps={{ sx: { width: 520, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)', overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}
     >
-      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%', overflow: 'auto' }}>
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, flex: 1, minHeight: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', flex: 1 }}>
             {initial?.id ? 'Edit Session' : 'Add Session'}
@@ -1047,9 +1047,9 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}
-      PaperProps={{ sx: { width: 520, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)', overflow: 'hidden' } }}
+      PaperProps={{ sx: { width: 520, bgcolor: '#13192b', borderLeft: '2px solid rgba(99,102,241,0.5)', boxShadow: '-8px 0 40px rgba(0,0,0,0.6)', overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}
     >
-      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%' }}>
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, flex: 1, minHeight: 0 }}>
         {/* Header */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
           <LiveTvIcon sx={{ color: AP.accent, fontSize: 20 }} />
