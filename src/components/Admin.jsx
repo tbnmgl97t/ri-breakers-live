@@ -81,6 +81,15 @@ const adminTheme = createTheme({
     MuiButton:  { styleOverrides: { root: { textTransform: 'none', fontWeight: 600 } } },
     MuiPaper:   { styleOverrides: { root: { backgroundImage: 'none', border: '1px solid rgba(255,255,255,0.07)' } } },
     MuiTab:     { styleOverrides: { root: { textTransform: 'none', fontWeight: 600 } } },
+    MuiCssBaseline: {
+      styleOverrides: {
+        // Invert the native date/time picker icons so they're visible on dark backgrounds
+        'input[type="date"]::-webkit-calendar-picker-indicator, input[type="time"]::-webkit-calendar-picker-indicator': {
+          filter: 'invert(0.7)',
+          cursor: 'pointer',
+        },
+      },
+    },
   },
 })
 
@@ -868,12 +877,13 @@ function toUtcIso(dateStr, timeStr) {
 // ─── Create Live Stream drawer ───────────────────────────────────────────────
 
 const INGEST_FORMATS = [
-  { value: 'rtmp',    label: 'RTMP' },
-  { value: 'rtmps',   label: 'RTMPS' },
-  { value: 'srt',     label: 'SRT' },
-  { value: 'hls',     label: 'HLS Push' },
-  { value: 'rtp',     label: 'RTP' },
-  { value: 'rtp_fec', label: 'RTP + FEC' },
+  { value: 'rtmp',     label: 'RTMP' },
+  { value: 'rtmps',    label: 'RTMPS' },
+  { value: 'srt',      label: 'SRT (Push)' },
+  { value: 'srt_pull', label: 'SRT (Pull)' },
+  { value: 'hls',      label: 'HLS Push' },
+  { value: 'rtp',      label: 'RTP' },
+  { value: 'rtp_fec',  label: 'RTP + FEC' },
 ]
 
 const REGIONS = [
