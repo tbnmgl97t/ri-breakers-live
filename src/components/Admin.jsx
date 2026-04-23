@@ -19,6 +19,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import LiveTvIcon from '@mui/icons-material/LiveTv'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import LocationOnIcon from '@mui/icons-material/LocationOn'
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney'
@@ -1060,13 +1061,22 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
 
 // ─── Tournament cost card ─────────────────────────────────────────────────────
 
-function TournamentCostCard({ tournament }) {
-  const [expanded, setExpanded] = useState(true)
+function TournamentCostCard({ tournament, cdnRecords = [] }) {
+  const [expanded,     setExpanded]     = useState(true)
+  const [expandedDays, setExpandedDays] = useState(new Set())
   const dateRange = getTournamentDateRange(tournament)
   const hasCost   = tournament.tournamentTotal > 0
 
   function fmtUSD(n) { return '$' + Number(n || 0).toFixed(2) }
   function fmtGB(n)  { return Number(n || 0).toFixed(2) + ' GB' }
+
+  function toggleDay(date) {
+    setExpandedDays(prev => {
+      const next = new Set(prev)
+      next.has(date) ? next.delete(date) : next.add(date)
+      return next
+    })
+  }
 
   const statusChip = (source) => {
     const cfg = {
@@ -1161,65 +1171,129 @@ function TournamentCostCard({ tournament }) {
                   const live      = day.source === 'live'
                   const scheduled = day.source === 'scheduled'
                   const none      = day.source === 'none'
+                  const dayOpen   = expandedDays.has(day.date)
+                  const dayFeeds  = cdnRecords.filter(r => r.date === day.date && Number(r.tournament_id) === tournament.id)
+                  const clickable = logged || pending || live
+
                   return (
-                    <TableRow key={day.id || day.date} sx={{
-                      '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 },
-                      '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' },
-                      opacity: (none || scheduled) ? 0.5 : 1,
-                    }}>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff', fontSize: '0.82rem' }}>{day.label}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="caption" sx={{ color: '#a8bcd4', whiteSpace: 'nowrap' }}>{formatDate(day.date)}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
-                          {day.feedCount > 0 ? day.feedCount : '—'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
-                          {day.stream_hours > 0
-                            ? `${Number(day.stream_hours).toFixed(2)}h${(live || pending) ? ' (est.)' : ''}`
-                            : '—'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
-                          {logged ? fmtGB(day.gb_delivered) : '—'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
-                          {logged  ? fmtUSD(day.cost_feed)
-                            : (live || pending) && day.est_feed > 0 ? fmtUSD(day.est_feed)
-                            : '—'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        {logged ? (
-                          <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{fmtUSD(day.cost_cdn)}</Typography>
-                        ) : (
-                          <Typography variant="caption" sx={{
-                            fontStyle: 'italic', whiteSpace: 'nowrap',
-                            color: live ? '#10b981' : pending ? '#f59e0b' : 'rgba(168,188,212,0.3)',
-                            fontSize: '0.68rem',
-                          }}>
-                            {live ? 'In progress…' : pending ? 'Pending' : scheduled ? 'Upcoming' : '—'}
+                    <React.Fragment key={day.id || day.date}>
+                      {/* ── Day summary row ── */}
+                      <TableRow
+                        onClick={() => clickable && toggleDay(day.date)}
+                        sx={{
+                          '& td': { borderColor: dayOpen ? 'transparent' : 'rgba(255,255,255,0.05)', py: 1.25 },
+                          bgcolor: dayOpen ? 'rgba(99,102,241,0.04)' : 'transparent',
+                          opacity: (none || scheduled) ? 0.5 : 1,
+                          cursor: clickable ? 'pointer' : 'default',
+                          '&:hover td': clickable ? { bgcolor: 'rgba(255,255,255,0.025)' } : {},
+                        }}
+                      >
+                        <TableCell sx={{ pl: 1.5 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                            {clickable && (
+                              <Box sx={{ color: AP.muted, display: 'flex', alignItems: 'center', transition: 'transform 0.15s', transform: dayOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                                <ChevronRightIcon sx={{ fontSize: 16 }} />
+                              </Box>
+                            )}
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff', fontSize: '0.82rem' }}>{day.label}</Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="caption" sx={{ color: '#a8bcd4', whiteSpace: 'nowrap' }}>{formatDate(day.date)}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                            {day.feedCount > 0 ? day.feedCount : '—'}
                           </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="caption" sx={{
-                          color: logged ? AP.accent : 'rgba(168,188,212,0.35)',
-                          fontWeight: logged ? 700 : 400,
-                          fontSize:   logged ? '0.78rem' : '0.72rem',
-                        }}>
-                          {logged ? fmtUSD(day.cost_total) : '—'}
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                            {day.stream_hours > 0
+                              ? `${Number(day.stream_hours).toFixed(2)}h${(live || pending) ? ' (est.)' : ''}`
+                              : '—'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                            {logged ? fmtGB(day.gb_delivered) : '—'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="caption" sx={{ color: '#a8bcd4' }}>
+                            {logged ? fmtUSD(day.cost_feed)
+                              : (live || pending) && day.est_feed > 0 ? fmtUSD(day.est_feed)
+                              : '—'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          {logged ? (
+                            <Typography variant="caption" sx={{ color: '#a8bcd4' }}>{fmtUSD(day.cost_cdn)}</Typography>
+                          ) : (
+                            <Typography variant="caption" sx={{
+                              fontStyle: 'italic', whiteSpace: 'nowrap',
+                              color: live ? '#10b981' : pending ? '#f59e0b' : 'rgba(168,188,212,0.3)',
+                              fontSize: '0.68rem',
+                            }}>
+                              {live ? 'In progress…' : pending ? 'Pending' : scheduled ? 'Upcoming' : '—'}
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="caption" sx={{
+                            color: logged ? AP.accent : 'rgba(168,188,212,0.35)',
+                            fontWeight: logged ? 700 : 400,
+                            fontSize:   logged ? '0.78rem' : '0.72rem',
+                          }}>
+                            {logged ? fmtUSD(day.cost_total) : '—'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+
+                      {/* ── Expanded feed rows ── */}
+                      {dayOpen && (
+                        <TableRow sx={{ '& td': { p: 0, borderColor: 'rgba(255,255,255,0.05)' } }}>
+                          <TableCell colSpan={8} sx={{ bgcolor: 'rgba(0,0,0,0.2)' }}>
+                            {dayFeeds.length === 0 ? (
+                              <Box sx={{ px: 4, py: 1.5 }}>
+                                <Typography variant="caption" sx={{ color: AP.muted, fontStyle: 'italic', fontSize: '0.75rem' }}>
+                                  No feeds logged for this day yet.
+                                </Typography>
+                              </Box>
+                            ) : (
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow sx={{ '& th': { color: 'rgba(168,188,212,0.5)', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.08em', borderColor: 'rgba(255,255,255,0.04)', pl: 4 } }}>
+                                    <TableCell sx={{ pl: '40px !important' }}>FEED</TableCell>
+                                    <TableCell>STREAM HRS</TableCell>
+                                    <TableCell>GB DEL</TableCell>
+                                    <TableCell>FEED FEE</TableCell>
+                                    <TableCell>CDN COST</TableCell>
+                                    <TableCell>TOTAL</TableCell>
+                                    <TableCell>MINS DEL</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {dayFeeds.map(f => (
+                                    <TableRow key={f.id} sx={{ '& td': { borderColor: 'rgba(255,255,255,0.04)', py: 1 }, '&:last-child td': { borderBottom: 0 } }}>
+                                      <TableCell sx={{ pl: '40px !important' }}>
+                                        <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: AP.text }}>{f.channel_name}</Typography>
+                                        <Typography sx={{ fontSize: '0.62rem', color: AP.muted, fontFamily: 'monospace' }}>{f.channel_id}</Typography>
+                                      </TableCell>
+                                      <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{Number(f.stream_hours).toFixed(2)}h</TableCell>
+                                      <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{fmtGB(f.gb_delivered)}</TableCell>
+                                      <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{fmtUSD(f.cost_feed)}</TableCell>
+                                      <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{fmtUSD(f.cost_cdn)}</TableCell>
+                                      <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: AP.accent }}>{fmtUSD(f.cost_total)}</TableCell>
+                                      <TableCell sx={{ fontSize: '0.75rem', color: AP.muted }}>{Number(f.minutes_delivered).toLocaleString()}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
                   )
                 })}
                 {/* Subtotal */}
@@ -1345,7 +1419,7 @@ function CostsPage({ tournaments, channels, cdnRecords = [], cdnPricing }) {
             </Typography>
           ) : (
             tournamentRollup.map(t => (
-              <TournamentCostCard key={t.id} tournament={t} />
+              <TournamentCostCard key={t.id} tournament={t} cdnRecords={cdnRecords} />
             ))
           )}
         </Box>
@@ -2143,7 +2217,6 @@ function Dashboard({ token, onLogout }) {
         >
           <Tab label="Dashboard" value="dashboard" />
           <Tab label="Costs"    value="costs"    icon={<AttachMoneyIcon sx={{ fontSize: 15 }} />} iconPosition="start" />
-          <Tab label="CDN"      value="cdn"      icon={<LiveTvIcon      sx={{ fontSize: 15 }} />} iconPosition="start" />
           <Tab label="Settings" value="settings" icon={<SettingsIcon    sx={{ fontSize: 15 }} />} iconPosition="start" />
         </Tabs>
       </Box>
@@ -2154,8 +2227,6 @@ function Dashboard({ token, onLogout }) {
 
         {activeTab === 'settings' ? (
           <TenantSettingsPanel token={token} />
-        ) : activeTab === 'cdn' ? (
-          <CdnReadOnlyPanel records={cdnRecords} channels={channels} pricing={cdnPricing} tournaments={tournaments} />
         ) : activeTab === 'dashboard' ? (
           <>
             {/* ── Tournaments ──────────────────────── */}
