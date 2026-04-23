@@ -892,15 +892,24 @@ const REGIONS = [
   { value: 'eu-west-1', label: 'EU West (eu-west-1)' },
 ]
 
+// Compute ET date ("YYYY-MM-DD") and time ("HH:MM") for a given Date object
+function etDateVal(d) { return d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) }
+function etTimeVal(d) { return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }) }
+function defaultStreamTimes() {
+  const start = new Date(Date.now() + 15 * 60 * 1000)
+  const end   = new Date(start.getTime() + 60 * 60 * 1000)
+  return { startDate: etDateVal(start), startTime: etTimeVal(start), endDate: etDateVal(end), endTime: etTimeVal(end) }
+}
+
 function CreateStreamDrawer({ open, token, onClose, onCreated }) {
   const [channelType, setChannelType] = useState('live_event')
   const [title, setTitle]             = useState('')
   const [region, setRegion]           = useState('us-east-1')
   const [ingestFormat, setIngestFormat] = useState('rtmp')
-  const [startDate, setStartDate]     = useState('')
-  const [startTime, setStartTime]     = useState('08:00')
-  const [endDate, setEndDate]         = useState('')
-  const [endTime, setEndTime]         = useState('17:00')
+  const [startDate, setStartDate]     = useState(() => defaultStreamTimes().startDate)
+  const [startTime, setStartTime]     = useState(() => defaultStreamTimes().startTime)
+  const [endDate, setEndDate]         = useState(() => defaultStreamTimes().endDate)
+  const [endTime, setEndTime]         = useState(() => defaultStreamTimes().endTime)
   const [ingestPointId, setIngestPointId] = useState('')
   const [ingestPoints, setIngestPoints]   = useState([])
   const [loadingPoints, setLoadingPoints] = useState(false)
@@ -918,15 +927,11 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
     setTitle('')
     setRegion('us-east-1')
     setIngestFormat('rtmp')
-    // Default start = now + 15 min, end = start + 1 hr
-    const start = new Date(Date.now() + 15 * 60 * 1000)
-    const end   = new Date(start.getTime() + 60 * 60 * 1000)
-    const toDateVal = d => d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) // YYYY-MM-DD
-    const toTimeVal = d => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' })
-    setStartDate(toDateVal(start))
-    setStartTime(toTimeVal(start))
-    setEndDate(toDateVal(end))
-    setEndTime(toTimeVal(end))
+    const t = defaultStreamTimes()
+    setStartDate(t.startDate)
+    setStartTime(t.startTime)
+    setEndDate(t.endDate)
+    setEndTime(t.endTime)
     setIngestPointId('')
     setDownloadable(false)
     setError('')
@@ -2526,6 +2531,7 @@ function Dashboard({ token, onLogout }) {
   const [dayDialog, setDayDialog] = useState({ open: false, initial: null, tournament: null })
   const [pickerDialog, setPickerDialog] = useState({ open: false, slot: null, day: null, tournamentId: null })
   const [createStreamOpen, setCreateStreamOpen] = useState(false)
+  const [createStreamKey, setCreateStreamKey]   = useState(0)
   const [activeTab, setActiveTab] = useState('dashboard')
   const [dashboardView, setDashboardView] = useState('both')
   const [streamFilter, setStreamFilter] = useState('all')
@@ -3016,7 +3022,7 @@ function Dashboard({ token, onLogout }) {
                         size="small"
                         startIcon={<LiveTvIcon sx={{ fontSize: '14px !important' }} />}
                         variant="outlined"
-                        onClick={() => setCreateStreamOpen(true)}
+                        onClick={() => { setCreateStreamKey(k => k + 1); setCreateStreamOpen(true) }}
                         sx={{ fontSize: '0.72rem', borderColor: AP.accentBdr, color: AP.accent, '&:hover': { borderColor: AP.accent } }}
                       >
                         New Live Stream
@@ -3382,6 +3388,7 @@ function Dashboard({ token, onLogout }) {
         onPick={picked => assignCamera(pickerDialog.slot, pickerDialog.tournamentId, picked)}
       />
       <CreateStreamDrawer
+        key={createStreamKey}
         open={createStreamOpen}
         token={token}
         onClose={() => setCreateStreamOpen(false)}
