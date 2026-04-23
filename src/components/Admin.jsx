@@ -27,6 +27,11 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import SettingsIcon from '@mui/icons-material/Settings'
 import PaletteIcon from '@mui/icons-material/Palette'
 import CloseIcon from '@mui/icons-material/Close'
+import AllInclusiveIcon from '@mui/icons-material/AllInclusive'
+import EventIcon from '@mui/icons-material/Event'
+import DownloadIcon from '@mui/icons-material/Download'
+import LinkIcon from '@mui/icons-material/Link'
+import VpnKeyIcon from '@mui/icons-material/VpnKey'
 import { useTenant } from '../contexts/TenantContext'
 
 const SESSION_KEY = 'ri_admin_token'
@@ -863,10 +868,12 @@ function toUtcIso(dateStr, timeStr) {
 // ─── Create Live Stream drawer ───────────────────────────────────────────────
 
 const INGEST_FORMATS = [
-  { value: 'rtmp',  label: 'RTMP' },
-  { value: 'rtmps', label: 'RTMPS' },
-  { value: 'srt',   label: 'SRT' },
-  { value: 'hls',   label: 'HLS Push' },
+  { value: 'rtmp',    label: 'RTMP' },
+  { value: 'rtmps',   label: 'RTMPS' },
+  { value: 'srt',     label: 'SRT' },
+  { value: 'hls',     label: 'HLS Push' },
+  { value: 'rtp',     label: 'RTP' },
+  { value: 'rtp_fec', label: 'RTP + FEC' },
 ]
 
 const REGIONS = [
@@ -880,17 +887,18 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
   const [region, setRegion]           = useState('us-east-1')
   const [ingestFormat, setIngestFormat] = useState('rtmp')
   const [startDate, setStartDate]     = useState('')
-  const [startTime, setStartTime]     = useState('8:00 AM')
+  const [startTime, setStartTime]     = useState('08:00')
   const [endDate, setEndDate]         = useState('')
-  const [endTime, setEndTime]         = useState('5:00 PM')
+  const [endTime, setEndTime]         = useState('17:00')
   const [ingestPointId, setIngestPointId] = useState('')
   const [ingestPoints, setIngestPoints]   = useState([])
   const [loadingPoints, setLoadingPoints] = useState(false)
+  const [downloadable, setDownloadable]   = useState(false)
 
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
   const [result, setResult]   = useState(null)
-  const [copied, setCopied]   = useState(false)
+  const [copiedField, setCopiedField] = useState(null)
 
   useEffect(() => {
     if (!open) return
@@ -899,13 +907,14 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
     setRegion('us-east-1')
     setIngestFormat('rtmp')
     setStartDate('')
-    setStartTime('8:00 AM')
+    setStartTime('08:00')
     setEndDate('')
-    setEndTime('5:00 PM')
+    setEndTime('17:00')
     setIngestPointId('')
+    setDownloadable(false)
     setError('')
     setResult(null)
-    setCopied(false)
+    setCopiedField(null)
     loadIngestPoints('rtmp')
   }, [open, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -916,8 +925,8 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
 
   function loadIngestPoints() {
     const fmt      = ['rtmp', 'srt'].includes(ingestFormat) ? ingestFormat : 'rtmp'
-    const startUtc = toUtcIso(startDate, startTime)
-    const endUtc   = toUtcIso(endDate, endTime)
+    const startUtc = toUtcIso(startDate, fromTimeInput(startTime))
+    const endUtc   = toUtcIso(endDate, fromTimeInput(endTime))
     setLoadingPoints(true)
     setIngestPointId('')
     let url = `/api/ingest-points?ingest_format=${fmt}`
@@ -934,18 +943,21 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
     setLoading(true)
     setError('')
     try {
+      const startAMPM = fromTimeInput(startTime)
+      const endAMPM   = fromTimeInput(endTime)
       const body = {
         title,
         region,
         channel_type: channelType,
         ingest_format: ingestFormat,
         ingest_point_id: ingestPointId || undefined,
+        downloadable,
       }
 
       if (channelType === 'live_event') {
-        const startUtc = toUtcIso(startDate, startTime)
-        const endUtc   = toUtcIso(endDate, endTime)
-        if (!startUtc) throw new Error('Invalid start date/time — use format like "8:00 AM"')
+        const startUtc = toUtcIso(startDate, startAMPM)
+        const endUtc   = toUtcIso(endDate,   endAMPM)
+        if (!startUtc) throw new Error('Invalid start date/time')
         const minsAway = (new Date(startUtc) - Date.now()) / 60_000
         if (minsAway < 15) throw new Error('Start time must be at least 15 minutes from now')
         body.start_time_utc = startUtc
@@ -968,20 +980,43 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
     }
   }
 
-  function copyUrl() {
-    if (result?.stream_url) {
-      navigator.clipboard.writeText(result.stream_url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
+  function copyField(field, value) {
+    if (!value) return
+    navigator.clipboard.writeText(value)
+    setCopiedField(field)
+    setTimeout(() => setCopiedField(null), 2000)
   }
 
   const tzLabel = 'ET'
-  const startUtcIso = channelType === 'live_event' ? toUtcIso(startDate, startTime) : null
+  const startAMPM    = fromTimeInput(startTime)
+  const startUtcIso  = channelType === 'live_event' ? toUtcIso(startDate, startAMPM) : null
   const minutesUntilStart = startUtcIso ? (new Date(startUtcIso) - Date.now()) / 60_000 : null
   const tooSoon = minutesUntilStart !== null && minutesUntilStart < 15
-  const isValid = title && (channelType === 'always_on' || (startDate && !tooSoon))
+  const isValid = title && (channelType === 'always_on' || (startDate && startTime && !tooSoon))
   const sectionLabel = { color: '#cbd5e1', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.09em', mb: 0.75 }
+
+  // Helper to render a copyable URL / key row in the result card
+  function CopyRow({ fieldKey, label, value, icon }) {
+    const wasCopied = copiedField === fieldKey
+    return (
+      <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+          {icon && React.cloneElement(icon, { sx: { fontSize: 12, color: AP.muted } })}
+          <Typography variant="caption" sx={{ color: AP.muted, fontWeight: 700, letterSpacing: '0.08em', fontSize: '0.6rem' }}>{label}</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(0,0,0,0.35)', borderRadius: 1, px: 1.5, py: 0.75 }}>
+          <Typography variant="caption" sx={{ color: AP.accent, fontFamily: 'monospace', fontSize: '0.63rem', flex: 1, wordBreak: 'break-all', lineHeight: 1.5 }}>
+            {value}
+          </Typography>
+          <Tooltip title={wasCopied ? 'Copied!' : 'Copy'}>
+            <IconButton size="small" onClick={() => copyField(fieldKey, value)} sx={{ color: wasCopied ? AP.live : AP.muted, flexShrink: 0, p: 0.25 }}>
+              <ContentCopyIcon sx={{ fontSize: 13 }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+    )
+  }
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}
@@ -1005,166 +1040,261 @@ function CreateStreamDrawer({ open, token, onClose, onCreated }) {
 
           {!result ? (
             <>
+              {/* ── Channel Type ─────────────────────────────── */}
               <Box>
                 <Typography sx={sectionLabel}>CHANNEL TYPE</Typography>
-              <ToggleButtonGroup
-                exclusive
-                value={channelType}
-                onChange={(_, v) => v && setChannelType(v)}
-                size="small"
-                fullWidth
+                <Box sx={{ display: 'flex', gap: 1.5 }}>
+                  {[
+                    { value: 'live_event', icon: <EventIcon />, title: 'Live Event', desc: 'Scheduled start & end time' },
+                    { value: 'always_on',  icon: <AllInclusiveIcon />, title: '24/7 Channel', desc: 'Continuous, always-on stream' },
+                  ].map(opt => {
+                    const sel = channelType === opt.value
+                    return (
+                      <Box
+                        key={opt.value}
+                        onClick={() => setChannelType(opt.value)}
+                        sx={{
+                          flex: 1, cursor: 'pointer', borderRadius: 2, p: 2,
+                          border: `2px solid ${sel ? AP.accent : 'rgba(255,255,255,0.1)'}`,
+                          bgcolor: sel ? AP.accentDim : 'rgba(255,255,255,0.02)',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.75,
+                          transition: 'all 0.15s',
+                          '&:hover': { borderColor: sel ? AP.accent : AP.accentBdr, bgcolor: sel ? AP.accentDim : 'rgba(255,255,255,0.04)' },
+                        }}
+                      >
+                        <Box sx={{ color: sel ? AP.accent : AP.muted }}>
+                          {React.cloneElement(opt.icon, { sx: { fontSize: 30 } })}
+                        </Box>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: sel ? '#fff' : AP.muted, textAlign: 'center' }}>
+                          {opt.title}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.67rem', color: sel ? AP.muted : 'rgba(148,163,184,0.5)', textAlign: 'center', lineHeight: 1.3 }}>
+                          {opt.desc}
+                        </Typography>
+                      </Box>
+                    )
+                  })}
+                </Box>
+              </Box>
+
+              {/* ── Stream Name ────────────────────────────────── */}
+              <TextField
+                fullWidth size="small" label="Stream Name" autoFocus
+                value={title} onChange={e => setTitle(e.target.value)}
+                placeholder="e.g. RI Breakers — Day 1 Camera 1"
+              />
+
+              {/* ── Region + Ingest Format ─────────────────────── */}
+              <Box sx={{ display: 'flex', gap: 1.5 }}>
+                <TextField
+                  select fullWidth size="small" label="Ingest Region"
+                  value={region} onChange={e => setRegion(e.target.value)}
+                >
+                  {REGIONS.map(r => <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>)}
+                </TextField>
+                <TextField
+                  select fullWidth size="small" label="Ingest Format"
+                  value={ingestFormat} onChange={e => setIngestFormat(e.target.value)}
+                >
+                  {INGEST_FORMATS.map(f => <MenuItem key={f.value} value={f.value}>{f.label}</MenuItem>)}
+                </TextField>
+              </Box>
+
+              {/* ── Live Event time windows ─────────────────────── */}
+              {channelType === 'live_event' && (
+                <>
+                  <Box>
+                    <Typography sx={sectionLabel}>START ({tzLabel})</Typography>
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                      <TextField type="date" size="small" fullWidth label="Date"
+                        value={startDate} onChange={e => setStartDate(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                      />
+                      <TextField type="time" size="small" fullWidth label="Time"
+                        value={startTime} onChange={e => setStartTime(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                        error={tooSoon}
+                        helperText={tooSoon
+                          ? (minutesUntilStart < 0
+                              ? `${Math.abs(Math.round(minutesUntilStart))} min in the past`
+                              : `Only ${Math.round(minutesUntilStart)} min away — need 15+`)
+                          : (startDate && startTime && startUtcIso
+                              ? `UTC: ${new Date(startUtcIso).toUTCString().replace(' GMT', ' UTC')}`
+                              : null)
+                        }
+                      />
+                    </Box>
+                    {tooSoon && (
+                      <Alert severity="warning" sx={{ mt: 1, fontSize: '0.78rem', py: 0.5 }}>
+                        Start time must be at least 15 minutes from now.
+                      </Alert>
+                    )}
+                  </Box>
+
+                  <Box>
+                    <Typography sx={sectionLabel}>END ({tzLabel})</Typography>
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                      <TextField type="date" size="small" fullWidth label="Date"
+                        value={endDate} onChange={e => setEndDate(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                      />
+                      <TextField type="time" size="small" fullWidth label="Time"
+                        value={endTime} onChange={e => setEndTime(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                        helperText={endDate && endTime && toUtcIso(endDate, fromTimeInput(endTime))
+                          ? `UTC: ${new Date(toUtcIso(endDate, fromTimeInput(endTime))).toUTCString().replace(' GMT', ' UTC')}`
+                          : null}
+                      />
+                    </Box>
+                  </Box>
+                </>
+              )}
+
+              {/* ── Ingest Point ───────────────────────────────── */}
+              <Box>
+                <Typography sx={sectionLabel}>INGEST POINT (optional)</Typography>
+                {loadingPoints ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
+                    <CircularProgress size={14} sx={{ color: AP.muted }} />
+                    <Typography variant="caption" sx={{ color: AP.muted }}>Loading available ingest points…</Typography>
+                  </Box>
+                ) : ingestPoints.length > 0 ? (
+                  <TextField
+                    select fullWidth size="small" label="Ingest Point"
+                    value={ingestPointId} onChange={e => setIngestPointId(e.target.value)}
+                    helperText={startDate ? 'Availability checked against your selected time window' : 'Set start/end time to check availability'}
+                  >
+                    <MenuItem value="">— Auto-assign —</MenuItem>
+                    {ingestPoints.map(p => (
+                      <MenuItem key={p.id} value={p.id}>
+                        {p.name}{p.available ? ' — available' : ' — in use'}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                ) : (
+                  <TextField
+                    fullWidth size="small" label="Ingest Point ID"
+                    value={ingestPointId} onChange={e => setIngestPointId(e.target.value)}
+                    placeholder="Leave blank to auto-assign"
+                    helperText="No ingest points returned — enter an ID manually or leave blank"
+                  />
+                )}
+              </Box>
+
+              {/* ── Downloadable Recording ─────────────────────── */}
+              <Box
+                onClick={() => setDownloadable(v => !v)}
                 sx={{
-                  '& .MuiToggleButton-root': {
-                    flex: 1, fontSize: '0.75rem', fontWeight: 700, borderColor: 'rgba(255,255,255,0.12)',
-                    color: '#a8bcd4', textTransform: 'none', py: 0.75,
-                  },
-                  '& .Mui-selected': { bgcolor: `${AP.accentMid} !important`, color: `${AP.accent} !important`, borderColor: `${AP.accentBdr} !important` },
+                  border: `1px solid ${downloadable ? AP.liveBdr : 'rgba(255,255,255,0.1)'}`,
+                  borderRadius: 1.5, p: 1.75,
+                  bgcolor: downloadable ? AP.liveDim : 'rgba(255,255,255,0.02)',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                  '&:hover': { borderColor: downloadable ? AP.live : 'rgba(255,255,255,0.2)' },
                 }}
               >
-                <ToggleButton value="live_event">Live Event</ToggleButton>
-                <ToggleButton value="always_on">24/7 Channel</ToggleButton>
-              </ToggleButtonGroup>
-            </Box>
-
-            <TextField
-              fullWidth size="small" label="Stream Name" autoFocus
-              value={title} onChange={e => setTitle(e.target.value)}
-              placeholder="e.g. RI Breakers — Day 1 Camera 1"
-            />
-
-            <Box sx={{ display: 'flex', gap: 1.5 }}>
-              <TextField
-                select fullWidth size="small" label="Ingest Region"
-                value={region} onChange={e => setRegion(e.target.value)}
-              >
-                {REGIONS.map(r => <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>)}
-              </TextField>
-              <TextField
-                select fullWidth size="small" label="Ingest Format"
-                value={ingestFormat} onChange={e => setIngestFormat(e.target.value)}
-              >
-                {INGEST_FORMATS.map(f => <MenuItem key={f.value} value={f.value}>{f.label}</MenuItem>)}
-              </TextField>
-            </Box>
-
-            {channelType === 'live_event' && (
-              <>
-                <Box>
-                  <Typography sx={sectionLabel}>START ({tzLabel})</Typography>
-                  <Box sx={{ display: 'flex', gap: 1.5 }}>
-                    <TextField type="date" size="small" fullWidth label="Date"
-                      value={startDate} onChange={e => setStartDate(e.target.value)}
-                      InputLabelProps={{ shrink: true }}
-                    />
-                    <TextField size="small" fullWidth label="Time"
-                      value={startTime} onChange={e => setStartTime(e.target.value)}
-                      placeholder="8:00 AM" error={tooSoon}
-                      helperText={
-                        tooSoon ? null
-                          : (startDate && startTime && toUtcIso(startDate, startTime)
-                              ? `UTC: ${new Date(toUtcIso(startDate, startTime)).toUTCString().replace(' GMT', ' UTC')}`
-                              : null)
-                      }
-                    />
-                  </Box>
-                  {tooSoon && (
-                    <Alert severity="warning" sx={{ mt: 1, fontSize: '0.78rem', py: 0.5 }}>
-                      Start time must be at least 15 minutes from now.
-                      {minutesUntilStart !== null && minutesUntilStart > -Infinity && (
-                        <> Currently {minutesUntilStart < 0 ? `${Math.abs(Math.round(minutesUntilStart))} min in the past` : `only ${Math.round(minutesUntilStart)} min away`}.</>
-                      )}
-                    </Alert>
-                  )}
-                </Box>
-
-                <Box>
-                  <Typography sx={sectionLabel}>END ({tzLabel})</Typography>
-                  <Box sx={{ display: 'flex', gap: 1.5 }}>
-                    <TextField type="date" size="small" fullWidth label="Date"
-                      value={endDate} onChange={e => setEndDate(e.target.value)}
-                      InputLabelProps={{ shrink: true }}
-                    />
-                    <TextField size="small" fullWidth label="Time"
-                      value={endTime} onChange={e => setEndTime(e.target.value)}
-                      placeholder="5:00 PM"
-                      helperText={endDate && endTime && toUtcIso(endDate, endTime)
-                        ? `UTC: ${new Date(toUtcIso(endDate, endTime)).toUTCString().replace(' GMT', ' UTC')}`
-                        : null}
-                    />
-                  </Box>
-                </Box>
-              </>
-            )}
-
-            <Box>
-              <Typography sx={sectionLabel}>INGEST POINT (optional)</Typography>
-              {loadingPoints ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
-                  <CircularProgress size={14} sx={{ color: '#a8bcd4' }} />
-                  <Typography variant="caption" sx={{ color: '#a8bcd4' }}>Loading available ingest points…</Typography>
-                </Box>
-              ) : ingestPoints.length > 0 ? (
-                <TextField
-                  select fullWidth size="small" label="Ingest Point"
-                  value={ingestPointId} onChange={e => setIngestPointId(e.target.value)}
-                  helperText={startDate ? 'Availability checked against your selected time window' : 'Set start/end time to check time-based availability'}
-                >
-                  <MenuItem value="">— Auto-assign —</MenuItem>
-                  {ingestPoints.map(p => (
-                    <MenuItem key={p.id} value={p.id}>
-                      {p.name}{p.available ? ' — available' : ' — in use'}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              ) : (
-                <TextField
-                  fullWidth size="small" label="Ingest Point ID"
-                  value={ingestPointId} onChange={e => setIngestPointId(e.target.value)}
-                  placeholder="Leave blank to auto-assign"
-                  helperText="No ingest points returned — enter an ID manually or leave blank"
-                />
-              )}
-            </Box>
-          </>
-        ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            <Alert severity="success" sx={{ fontSize: '0.8rem' }}>
-              Live stream <strong>{result.name}</strong> created successfully.
-            </Alert>
-            <Box sx={{ bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1.5, p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 700, letterSpacing: '0.08em' }}>STREAM ID</Typography>
-                <Typography variant="caption" sx={{ color: '#fff', fontFamily: 'monospace' }}>{result.id}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 700, letterSpacing: '0.08em' }}>TYPE</Typography>
-                <Typography variant="caption" sx={{ color: '#fff', fontFamily: 'monospace' }}>{result.stream_type || '—'}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 700, letterSpacing: '0.08em' }}>STATUS</Typography>
-                <Chip
-                  label={{ requested: 'Scheduled', scheduled: 'Scheduled', creating: 'Creating', active: 'Live', idle: 'Idle' }[result.status] || result.status || 'Creating'}
-                  size="small"
-                  sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, bgcolor: 'rgba(255,255,255,0.06)', color: '#a8bcd4' }}
-                />
-              </Box>
-              {result.stream_url && (
-                <Box>
-                  <Typography variant="caption" sx={{ color: '#a8bcd4', fontWeight: 700, letterSpacing: '0.08em', display: 'block', mb: 0.5 }}>STREAM URL</Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(0,0,0,0.3)', borderRadius: 1, px: 1.5, py: 0.75 }}>
-                    <Typography variant="caption" sx={{ color: AP.accent, fontFamily: 'monospace', fontSize: '0.65rem', flex: 1, wordBreak: 'break-all' }}>
-                      {result.stream_url}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <DownloadIcon sx={{ color: downloadable ? AP.live : AP.muted, fontSize: 22, flexShrink: 0 }} />
+                  <Box sx={{ flex: 1 }}>
+                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: downloadable ? '#fff' : AP.muted, lineHeight: 1.2 }}>
+                      Downloadable Recording
                     </Typography>
-                    <Tooltip title={copied ? 'Copied!' : 'Copy URL'}>
-                      <IconButton size="small" onClick={copyUrl} sx={{ color: copied ? '#4caf50' : '#a8bcd4', flexShrink: 0 }}>
-                        <ContentCopyIcon sx={{ fontSize: 14 }} />
-                      </IconButton>
-                    </Tooltip>
+                    <Typography sx={{ fontSize: '0.68rem', color: AP.muted, mt: 0.25 }}>
+                      VOD asset saved 10 days · Auto-deleted after expiry
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {downloadable && (
+                      <Chip label="+$5" size="small"
+                        sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700, bgcolor: 'rgba(16,185,129,0.15)', color: AP.live, border: `1px solid ${AP.liveBdr}` }}
+                      />
+                    )}
+                    <Switch
+                      checked={downloadable}
+                      onChange={e => { e.stopPropagation(); setDownloadable(e.target.checked) }}
+                      size="small"
+                      sx={{
+                        '& .MuiSwitch-switchBase.Mui-checked': { color: AP.live },
+                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: AP.live },
+                      }}
+                    />
                   </Box>
                 </Box>
-              )}
+              </Box>
+            </>
+          ) : (
+            /* ── Result card ─────────────────────────────────── */
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Alert severity="success" sx={{ fontSize: '0.8rem' }}>
+                <strong>{result.name}</strong> created successfully!
+                {result.downloadable && (
+                  <Box component="span" sx={{ display: 'block', fontSize: '0.75rem', mt: 0.25, color: 'inherit', opacity: 0.85 }}>
+                    Recording will be available for download for 10 days after the stream ends.
+                  </Box>
+                )}
+              </Alert>
+
+              {/* Connection Details */}
+              <Box sx={{ bgcolor: 'rgba(0,0,0,0.3)', border: `1px solid ${AP.accentBdr}`, borderRadius: 1.5, p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Typography sx={sectionLabel}>CONNECTION DETAILS</Typography>
+
+                {(result.ingest_address || result.raw?.ingest_address) && (
+                  <CopyRow
+                    fieldKey="ingest"
+                    label="INGEST URL"
+                    value={result.ingest_address || result.raw?.ingest_address}
+                    icon={<LinkIcon />}
+                  />
+                )}
+                {(result.ingest_stream_key || result.raw?.connection_code) && (
+                  <CopyRow
+                    fieldKey="key"
+                    label="STREAM KEY"
+                    value={result.ingest_stream_key || result.raw?.connection_code}
+                    icon={<VpnKeyIcon />}
+                  />
+                )}
+                {result.stream_url && (
+                  <CopyRow
+                    fieldKey="playback"
+                    label="PLAYBACK URL (HLS)"
+                    value={result.stream_url}
+                    icon={<PlayArrowIcon />}
+                  />
+                )}
+              </Box>
+
+              {/* Stream Info */}
+              <Box sx={{ bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 1.5, p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Typography sx={sectionLabel}>STREAM INFO</Typography>
+                {[
+                  { label: 'STREAM ID',  value: result.id },
+                  { label: 'SITE ID',    value: result.site_id || 'nowvcKsD' },
+                  { label: 'TYPE',       value: result.stream_type || '—' },
+                  { label: 'INGEST FORMAT', value: result.ingest_format || '—' },
+                ].map(row => (
+                  <Box key={row.label} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="caption" sx={{ color: AP.muted, fontWeight: 700, letterSpacing: '0.07em', fontSize: '0.6rem' }}>{row.label}</Typography>
+                    <Typography variant="caption" sx={{ color: '#fff', fontFamily: 'monospace', fontSize: '0.7rem' }}>{row.value}</Typography>
+                  </Box>
+                ))}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="caption" sx={{ color: AP.muted, fontWeight: 700, letterSpacing: '0.07em', fontSize: '0.6rem' }}>STATUS</Typography>
+                  <Chip
+                    label={{ requested: 'Scheduled', scheduled: 'Scheduled', creating: 'Creating', active: 'Live', idle: 'Idle' }[result.status] || result.status || 'Creating'}
+                    size="small"
+                    sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, bgcolor: 'rgba(255,255,255,0.06)', color: AP.muted }}
+                  />
+                </Box>
+                {result.warm_up_start && (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="caption" sx={{ color: AP.muted, fontWeight: 700, letterSpacing: '0.07em', fontSize: '0.6rem' }}>WARM-UP STARTS</Typography>
+                    <Typography variant="caption" sx={{ color: AP.warn, fontFamily: 'monospace', fontSize: '0.65rem' }}>
+                      {new Date(result.warm_up_start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })} ET
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
             </Box>
-          </Box>
           )}
         </Box>{/* end scrollable content */}
 
@@ -2974,27 +3104,64 @@ function Dashboard({ token, onLogout }) {
                           </TableCell>
                           <TableCell align="right">
                             {!ch._fromCdn && (
-                              <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                                {ch.stream_url && (
-                                  <Tooltip title="Preview stream (admin only)">
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
+                                {/* VOD download badge — shown for recordings that are downloadable */}
+                                {ch.enable_live_to_vod && (() => {
+                                  const vodUrl = ch.vod_media_id
+                                    ? `https://cdn.jwplayer.com/videos/${ch.vod_media_id}-720p.mp4`
+                                    : null
+                                  const expiresAt = ch.vod_expires_at ? new Date(ch.vod_expires_at) : null
+                                  const daysLeft  = expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 86_400_000)) : null
+                                  return (
+                                    <Tooltip title={vodUrl ? `Download recording (${daysLeft ?? '?'} days left)` : 'Recording being processed…'}>
+                                      <Box
+                                        component={vodUrl ? 'a' : 'div'}
+                                        href={vodUrl || undefined}
+                                        download={vodUrl ? `${ch.name}.mp4` : undefined}
+                                        sx={{
+                                          display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                                          px: 1, py: 0.4, borderRadius: 1,
+                                          bgcolor: vodUrl ? AP.liveDim : 'rgba(255,255,255,0.04)',
+                                          border: `1px solid ${vodUrl ? AP.liveBdr : 'rgba(255,255,255,0.1)'}`,
+                                          color: vodUrl ? AP.live : AP.muted,
+                                          cursor: vodUrl ? 'pointer' : 'default',
+                                          textDecoration: 'none',
+                                          '&:hover': vodUrl ? { bgcolor: 'rgba(16,185,129,0.25)' } : {},
+                                        }}
+                                      >
+                                        <DownloadIcon sx={{ fontSize: 11 }} />
+                                        <Typography sx={{ fontSize: '0.6rem', fontWeight: 700 }}>
+                                          {vodUrl
+                                            ? (daysLeft !== null ? `${daysLeft}d left` : 'Download')
+                                            : 'Processing…'
+                                          }
+                                        </Typography>
+                                      </Box>
+                                    </Tooltip>
+                                  )
+                                })()}
+                                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                  {ch.stream_url && (
+                                    <Tooltip title="Preview stream (admin only)">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => setPreviewDialog({ open: true, channelName: ch.name, streamUrl: ch.stream_url })}
+                                        sx={{ color: AP.accent, '&:hover': { color: AP.accentHov } }}
+                                      >
+                                        <PlayArrowIcon sx={{ fontSize: 18 }} />
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
+                                  <Tooltip title="Delete stream">
                                     <IconButton
                                       size="small"
-                                      onClick={() => setPreviewDialog({ open: true, channelName: ch.name, streamUrl: ch.stream_url })}
-                                      sx={{ color: AP.accent, '&:hover': { color: AP.accentHov } }}
+                                      onClick={() => deleteChannel(ch.id, ch.name)}
+                                      sx={{ color: AP.muted, '&:hover': { color: '#f44336' } }}
                                     >
-                                      <PlayArrowIcon sx={{ fontSize: 18 }} />
+                                      <DeleteIcon sx={{ fontSize: 16 }} />
                                     </IconButton>
                                   </Tooltip>
-                                )}
-                                <Tooltip title="Delete stream">
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => deleteChannel(ch.id, ch.name)}
-                                    sx={{ color: AP.muted, '&:hover': { color: '#f44336' } }}
-                                  >
-                                    <DeleteIcon sx={{ fontSize: 16 }} />
-                                  </IconButton>
-                                </Tooltip>
+                                </Box>
                               </Box>
                             )}
                           </TableCell>

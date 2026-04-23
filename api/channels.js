@@ -33,15 +33,18 @@ export default async function handler(req, res) {
     const channels = raw.map(ch => {
       const rtmp = ch.metadata?.ingest?.rtmp?.ingest_point
       return {
-        id:           ch.id,
-        name:         ch.metadata?.title || ch.id,
-        status:       ch.metadata?.status || 'idle',
-        stream_type:  ch.stream_type || null,
-        stream_url:   ch.metadata?.playout?.hls || null,
-        stream_start: ch.metadata?.stream_start || null,
-        stream_end:   ch.metadata?.stream_end   || null,
-        ingest_url:   rtmp?.url  || null,
-        ingest_key:   rtmp?.key  || null,
+        id:               ch.id,
+        name:             ch.metadata?.title || ch.id,
+        status:           ch.metadata?.status || 'idle',
+        stream_type:      ch.stream_type || null,
+        stream_url:       ch.metadata?.playout?.hls || null,
+        stream_start:     ch.metadata?.stream_start || null,
+        stream_end:       ch.metadata?.stream_end   || null,
+        ingest_url:       rtmp?.url  || null,
+        ingest_key:       rtmp?.key  || null,
+        // VOD / downloadable recording
+        enable_live_to_vod: ch.options?.enable_live_to_vod || ch.metadata?.enable_live_to_vod || false,
+        vod_media_id:     ch.vod_media_id || ch.metadata?.vod_media_id || null,
       }
     })
     // Sort: latest stream_start first; tie-break by name A→Z; no-start go last
