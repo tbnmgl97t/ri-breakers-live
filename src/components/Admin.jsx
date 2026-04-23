@@ -1070,10 +1070,11 @@ function TournamentCostCard({ tournament }) {
 
   const statusChip = (source) => {
     const cfg = {
-      logged:  { label: 'LOGGED',  bg: AP.accentDim,                     color: AP.accent, border: AP.accentBdr },
-      live:    { label: 'LIVE',    bg: 'rgba(16,185,129,0.15)',           color: '#10b981', border: 'rgba(16,185,129,0.4)' },
-      pending: { label: 'PENDING', bg: 'rgba(245,158,11,0.12)',           color: '#f59e0b', border: 'rgba(245,158,11,0.4)' },
-      none:    { label: 'NO DATA', bg: 'rgba(168,188,212,0.06)',          color: 'rgba(168,188,212,0.35)', border: 'rgba(168,188,212,0.15)' },
+      logged:    { label: 'LOGGED',    bg: AP.accentDim,                     color: AP.accent, border: AP.accentBdr },
+      live:      { label: 'LIVE',      bg: 'rgba(16,185,129,0.15)',           color: '#10b981', border: 'rgba(16,185,129,0.4)' },
+      pending:   { label: 'PENDING',   bg: 'rgba(245,158,11,0.12)',           color: '#f59e0b', border: 'rgba(245,158,11,0.4)' },
+      scheduled: { label: 'SCHEDULED', bg: 'rgba(99,102,241,0.1)',            color: '#818cf8', border: 'rgba(99,102,241,0.3)' },
+      none:      { label: 'NO DATA',   bg: 'rgba(168,188,212,0.06)',          color: 'rgba(168,188,212,0.35)', border: 'rgba(168,188,212,0.15)' },
     }[source] || {}
     return (
       <Chip label={cfg.label} size="small" sx={{
@@ -1156,15 +1157,16 @@ function TournamentCostCard({ tournament }) {
               </TableHead>
               <TableBody>
                 {tournament.days.map(day => {
-                  const logged  = day.source === 'logged'
-                  const pending = day.source === 'pending'
-                  const live    = day.source === 'live'
-                  const none    = day.source === 'none'
+                  const logged    = day.source === 'logged'
+                  const pending   = day.source === 'pending'
+                  const live      = day.source === 'live'
+                  const scheduled = day.source === 'scheduled'
+                  const none      = day.source === 'none'
                   return (
                     <TableRow key={day.id || day.date} sx={{
                       '& td': { borderColor: 'rgba(255,255,255,0.05)', py: 1.25 },
                       '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' },
-                      opacity: none ? 0.5 : 1,
+                      opacity: (none || scheduled) ? 0.5 : 1,
                     }}>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 700, color: '#fff', fontSize: '0.82rem' }}>{day.label}</Typography>
@@ -1208,9 +1210,10 @@ function TournamentCostCard({ tournament }) {
                           fontSize:   logged ? '0.78rem' : '0.72rem',
                           whiteSpace: 'nowrap',
                         }}>
-                          {logged  ? fmtUSD(day.cost_total)
-                            : live    ? 'In progress…'
-                            : pending ? 'Awaiting CDN data'
+                          {logged    ? fmtUSD(day.cost_total)
+                            : live      ? 'In progress…'
+                            : pending   ? 'Awaiting CDN data'
+                            : scheduled ? 'Upcoming'
                             : '—'}
                         </Typography>
                       </TableCell>
@@ -1288,11 +1291,14 @@ function CostsPage({ tournaments, channels, cdnRecords = [], cdnPricing }) {
         tournamentTotal += totals.cost_total
         return { ...day, ...totals, feedCount: recs.length, source: 'logged' }
       } else if (jwChannels.length > 0) {
-        // LIVE or PENDING — estimate feed fee from stream hours
-        const isLive   = jwChannels.some(ch => !ch.stream_end || new Date(ch.stream_end) > new Date())
-        const estHours = jwChannels.reduce((s, ch) => s + streamHours(ch), 0)
-        const est_feed = jwChannels.reduce((s, ch) => s + estFeedFee(ch), 0)
-        return { ...day, stream_hours: estHours, est_feed, feedCount: jwChannels.length, source: isLive ? 'live' : 'pending' }
+        // Determine day status from JW channel status field
+        const isActive    = jwChannels.some(ch => ch.status?.toLowerCase() === 'active')
+        const hasEnded    = jwChannels.some(ch => ch.stream_end && new Date(ch.stream_end) <= new Date())
+        const isScheduled = !isActive && !hasEnded
+        const source      = isActive ? 'live' : hasEnded ? 'pending' : 'scheduled'
+        const estHours    = jwChannels.reduce((s, ch) => s + streamHours(ch), 0)
+        const est_feed    = isActive ? jwChannels.reduce((s, ch) => s + estFeedFee(ch), 0) : 0
+        return { ...day, stream_hours: isScheduled ? 0 : estHours, est_feed, feedCount: jwChannels.length, source }
       }
       return { ...day, feedCount: 0, stream_hours: 0, source: 'none' }
     })
@@ -1678,7 +1684,11 @@ function CdnReadOnlyPanel({ records = [], channels = [], pricing, tournaments = 
     .map(ch => {
       const date   = chDate(ch)
       const record = records.find(r => r.channel_id === ch.id && r.date === date)
-      const isLive = !ch.stream_end || new Date(ch.stream_end) > new Date()
+      // Use JW status field: 'active' = streaming, ended stream_end = pending, future = scheduled
+      const jwStatus  = ch.status?.toLowerCase()
+      const isActive  = jwStatus === 'active'
+      const hasEnded  = ch.stream_end && new Date(ch.stream_end) <= new Date()
+      const chStatus  = record ? 'logged' : isActive ? 'live' : hasEnded ? 'pending' : 'scheduled'
       return {
         key:         `ch-${ch.id}`,
         date,
@@ -1686,8 +1696,7 @@ function CdnReadOnlyPanel({ records = [], channels = [], pricing, tournaments = 
         channel_name: ch.name || ch.id,
         label:       ch.name || ch.id,
         stream_hours: streamHours(ch),
-        isLive,
-        status:      record ? 'logged' : isLive ? 'live' : 'pending',
+        status:      chStatus,
         record,      // cdn_record if logged
       }
     })
@@ -1715,9 +1724,10 @@ function CdnReadOnlyPanel({ records = [], channels = [], pricing, tournaments = 
 
   const statusChip = (status) => {
     const cfg = {
-      live:    { label: 'LIVE',    bg: 'rgba(16,185,129,0.15)',  color: '#10b981', border: 'rgba(16,185,129,0.4)' },
-      pending: { label: 'PENDING', bg: 'rgba(245,158,11,0.12)',  color: '#f59e0b', border: 'rgba(245,158,11,0.4)' },
-      logged:  { label: 'LOGGED',  bg: AP.accentDim,             color: AP.accent, border: AP.accentBdr },
+      live:      { label: 'LIVE',      bg: 'rgba(16,185,129,0.15)',  color: '#10b981', border: 'rgba(16,185,129,0.4)' },
+      pending:   { label: 'PENDING',   bg: 'rgba(245,158,11,0.12)',  color: '#f59e0b', border: 'rgba(245,158,11,0.4)' },
+      logged:    { label: 'LOGGED',    bg: AP.accentDim,             color: AP.accent, border: AP.accentBdr },
+      scheduled: { label: 'SCHEDULED', bg: 'rgba(99,102,241,0.1)',   color: '#818cf8', border: 'rgba(99,102,241,0.3)' },
     }[status] || {}
     return (
       <Chip label={cfg.label} size="small" sx={{
@@ -1816,7 +1826,11 @@ function CdnReadOnlyPanel({ records = [], channels = [], pricing, tournaments = 
                     <TableCell sx={{ fontSize: '0.78rem' }}>{rec ? fmtUSD(rec.cost_feed) : '—'}</TableCell>
                     <TableCell sx={{ fontSize: '0.78rem' }}>{rec ? fmtUSD(rec.cost_cdn) : '—'}</TableCell>
                     <TableCell sx={{ fontSize: '0.78rem', fontWeight: rec ? 700 : 400, color: rec ? AP.accent : AP.muted }}>
-                      {rec ? fmtUSD(rec.cost_total) : row.status === 'pending' ? 'Awaiting CDN data' : row.status === 'live' ? 'In progress' : '—'}
+                      {rec                           ? fmtUSD(rec.cost_total)
+                        : row.status === 'live'      ? 'In progress…'
+                        : row.status === 'pending'   ? 'Awaiting CDN data'
+                        : row.status === 'scheduled' ? 'Upcoming'
+                        : '—'}
                     </TableCell>
                   </TableRow>
                 )
