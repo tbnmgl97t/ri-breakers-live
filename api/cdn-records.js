@@ -1,24 +1,29 @@
 /**
  * /api/cdn-records
  *
- * Per-feed CDN usage records (actual GB pulled from JW reports).
+ * Per-feed CDN usage records entered from JW analytics reports.
  * One record = one JW channel for one event day.
  *
  * Record shape:
  * {
- *   id:           number,
- *   date:         string,   // YYYY-MM-DD
- *   label:        string,   // "KWC 2026 Day 3"
- *   tournament_id: number | null,
- *   channel_id:   string,   // JW channel ID
- *   channel_name: string,   // "Main Deck"
- *   gb_ingested:  number,
- *   gb_delivered: number,
- *   gb_stored:    number,
+ *   id:                number,
+ *   date:              string,   // YYYY-MM-DD
+ *   label:             string,   // "KWC 2026 Day 3"
+ *   tournament_id:     number | null,
+ *   channel_id:        string,   // JW channel ID
+ *   channel_name:      string,   // "Main Deck"
+ *   stream_hours:      number,   // how long the feed actually ran
+ *   minutes_delivered: number,   // total viewer-minutes from JW analytics
  * }
  *
- * GET    — public; returns all records (with computed costs attached)
- * POST   — TD auth; create  body: { date, label, tournament_id?, channel_id, channel_name, gb_ingested, gb_delivered, gb_stored }
+ * Cost formula (using pricing config):
+ *   gb_delivered  = minutes_delivered / 50 * gb_per_50_min
+ *   cost_cdn      = gb_delivered * cdn_rate_per_gb
+ *   cost_feed     = stream_hours * feed_rate_per_hr
+ *   cost_total    = cost_feed + cost_cdn
+ *
+ * GET    — public; returns all records with computed costs attached
+ * POST   — TD auth; create  body: { date, label, tournament_id?, channel_id, channel_name, stream_hours, minutes_delivered }
  * PUT    — TD auth; update  body: { id, ...fields }
  * DELETE — TD auth; delete  body: { id }
  */
@@ -29,7 +34,7 @@ import { readPricing }   from './pricing.js'
 const EC_ID        = process.env.EDGE_CONFIG_ID
 const VERCEL_TOKEN = process.env.VERCEL_API_TOKEN
 
-const REQUIRED_FIELDS = ['date', 'label', 'channel_id', 'channel_name', 'gb_ingested', 'gb_delivered', 'gb_stored']
+const REQUIRED_FIELDS = ['date', 'label', 'channel_id', 'channel_name', 'stream_hours', 'minutes_delivered']
 
 async function readRecords() {
   if (!EC_ID || !VERCEL_TOKEN) return []
@@ -63,19 +68,22 @@ async function writeRecords(records) {
   }
 }
 
-function calcCost(record, pricing) {
-  const overrides = pricing.channel_overrides?.[record.channel_id] || {}
-  const ingestion_rate = overrides.ingestion_per_gb ?? pricing.ingestion_per_gb
-  const storage_rate   = overrides.storage_per_gb   ?? pricing.storage_per_gb
-  const playout_rate   = overrides.playout_per_gb   ?? pricing.playout_per_gb
+export function calcCost(record, pricing) {
+  const overrides       = pricing.channel_overrides?.[record.channel_id] || {}
+  const feed_rate       = overrides.feed_rate_per_hr  ?? pricing.feed_rate_per_hr
+  const cdn_rate        = overrides.cdn_rate_per_gb   ?? pricing.cdn_rate_per_gb
+  const gb_per_50_min   = pricing.gb_per_50_min
+
+  const gb_delivered    = (record.minutes_delivered / 50) * gb_per_50_min
+  const cost_feed       = record.stream_hours * feed_rate
+  const cost_cdn        = gb_delivered * cdn_rate
+
   return {
-    cost_ingestion: record.gb_ingested  * ingestion_rate,
-    cost_storage:   record.gb_stored    * storage_rate,
-    cost_playout:   record.gb_delivered * playout_rate,
-    cost_total:     (record.gb_ingested  * ingestion_rate)
-                  + (record.gb_stored    * storage_rate)
-                  + (record.gb_delivered * playout_rate),
-    rates_used: { ingestion_rate, storage_rate, playout_rate },
+    gb_delivered,
+    cost_feed,
+    cost_cdn,
+    cost_total: cost_feed + cost_cdn,
+    rates_used: { feed_rate, cdn_rate, gb_per_50_min },
   }
 }
 
@@ -89,7 +97,6 @@ export default async function handler(req, res) {
       return res.status(200).json(enriched)
     }
 
-    // All mutations require TD auth
     if (!verifyTdToken(req.headers.authorization)) {
       return res.status(401).json({ error: 'Unauthorized — TD admin token required' })
     }
@@ -102,15 +109,14 @@ export default async function handler(req, res) {
 
       const newId = Math.max(0, ...records.map(r => r.id)) + 1
       const created = {
-        id:           newId,
-        date:         req.body.date,
-        label:        req.body.label,
-        tournament_id: req.body.tournament_id ?? null,
-        channel_id:   req.body.channel_id,
-        channel_name: req.body.channel_name,
-        gb_ingested:  Number(req.body.gb_ingested),
-        gb_delivered: Number(req.body.gb_delivered),
-        gb_stored:    Number(req.body.gb_stored),
+        id:                newId,
+        date:              req.body.date,
+        label:             req.body.label,
+        tournament_id:     req.body.tournament_id ?? null,
+        channel_id:        req.body.channel_id,
+        channel_name:      req.body.channel_name,
+        stream_hours:      Number(req.body.stream_hours),
+        minutes_delivered: Number(req.body.minutes_delivered),
       }
       await writeRecords([...records, created].sort((a, b) => a.date.localeCompare(b.date)))
       return res.status(201).json(created)
@@ -122,8 +128,8 @@ export default async function handler(req, res) {
       const idx = records.findIndex(r => r.id === Number(id))
       if (idx === -1) return res.status(404).json({ error: 'Record not found' })
 
-      const updated = [...records]
-      const numFields = ['gb_ingested', 'gb_delivered', 'gb_stored']
+      const numFields = ['stream_hours', 'minutes_delivered']
+      const updated   = [...records]
       updated[idx] = {
         ...updated[idx],
         ...Object.fromEntries(

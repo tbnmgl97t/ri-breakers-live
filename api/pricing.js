@@ -3,22 +3,26 @@
  *
  * GET  — public; returns current pricing config
  * PUT  — TD auth; update pricing config
- *        body: { ingestion_per_gb?, storage_per_gb?, playout_per_gb?, channel_overrides? }
  *
  * Pricing shape stored in Edge Config under key `pricing`:
  * {
- *   ingestion_per_gb:  number,   // $/GB ingested
- *   storage_per_gb:    number,   // $/GB stored
- *   playout_per_gb:    number,   // $/GB delivered (playout)
+ *   feed_rate_per_hr:  number,   // $/hr per feed (flat channel fee)
+ *   cdn_rate_per_gb:   number,   // $/GB CDN delivery
+ *   gb_per_50_min:     number,   // GB of data per 50 minutes (data rate constant)
  *   channel_overrides: {         // per-JW-channel-ID rate overrides
  *     [channelId]: {
- *       name?:             string,
- *       ingestion_per_gb?: number,
- *       storage_per_gb?:   number,
- *       playout_per_gb?:   number,
+ *       name?:            string,
+ *       feed_rate_per_hr?: number,
+ *       cdn_rate_per_gb?:  number,
  *     }
  *   }
  * }
+ *
+ * Cost formula per feed:
+ *   gb_delivered = minutes_delivered / 50 * gb_per_50_min
+ *   cost_feed    = stream_hours * feed_rate_per_hr
+ *   cost_cdn     = gb_delivered * cdn_rate_per_gb
+ *   cost_total   = cost_feed + cost_cdn
  */
 
 import { verifyTdToken } from './td-auth.js'
@@ -27,9 +31,9 @@ const EC_ID        = process.env.EDGE_CONFIG_ID
 const VERCEL_TOKEN = process.env.VERCEL_API_TOKEN
 
 export const DEFAULT_PRICING = {
-  ingestion_per_gb:  0.05,
-  storage_per_gb:    0.02,
-  playout_per_gb:    0.12,
+  feed_rate_per_hr:  15.00,   // $15/hr per feed
+  cdn_rate_per_gb:    0.05,   // $0.05/GB
+  gb_per_50_min:      4,      // 4 GB per 50 minutes
   channel_overrides: {},
 }
 
@@ -76,12 +80,12 @@ export default async function handler(req, res) {
         return res.status(401).json({ error: 'Unauthorized' })
       }
       const current = await readPricing()
-      const { ingestion_per_gb, storage_per_gb, playout_per_gb, channel_overrides } = req.body
+      const { feed_rate_per_hr, cdn_rate_per_gb, gb_per_50_min, channel_overrides } = req.body
       const updated = {
         ...current,
-        ...(ingestion_per_gb  !== undefined && { ingestion_per_gb:  Number(ingestion_per_gb) }),
-        ...(storage_per_gb    !== undefined && { storage_per_gb:    Number(storage_per_gb) }),
-        ...(playout_per_gb    !== undefined && { playout_per_gb:    Number(playout_per_gb) }),
+        ...(feed_rate_per_hr  !== undefined && { feed_rate_per_hr:  Number(feed_rate_per_hr) }),
+        ...(cdn_rate_per_gb   !== undefined && { cdn_rate_per_gb:   Number(cdn_rate_per_gb) }),
+        ...(gb_per_50_min     !== undefined && { gb_per_50_min:     Number(gb_per_50_min) }),
         ...(channel_overrides !== undefined && { channel_overrides }),
       }
       await writePricing(updated)

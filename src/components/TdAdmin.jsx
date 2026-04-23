@@ -134,29 +134,39 @@ function StatCard({ label, value, sub }) {
 const EMPTY_CDN = {
   date: '', label: '', tournament_id: '',
   channel_id: '', channel_name: '',
-  gb_ingested: '', gb_delivered: '', gb_stored: '',
+  stream_hours: '', minutes_delivered: '',
 }
 
-function CdnRecordDialog({ open, initial, tournaments, onClose, onSave }) {
-  const [form, setForm]   = useState(EMPTY_CDN)
+function CdnRecordDialog({ open, initial, tournaments, pricing, onClose, onSave }) {
+  const [form, setForm]     = useState(EMPTY_CDN)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (open) {
       setForm(initial ? {
-        date:          initial.date,
-        label:         initial.label,
-        tournament_id: initial.tournament_id ?? '',
-        channel_id:    initial.channel_id,
-        channel_name:  initial.channel_name,
-        gb_ingested:   initial.gb_ingested,
-        gb_delivered:  initial.gb_delivered,
-        gb_stored:     initial.gb_stored,
+        date:              initial.date,
+        label:             initial.label,
+        tournament_id:     initial.tournament_id ?? '',
+        channel_id:        initial.channel_id,
+        channel_name:      initial.channel_name,
+        stream_hours:      initial.stream_hours,
+        minutes_delivered: initial.minutes_delivered,
       } : EMPTY_CDN)
     }
   }, [open, initial])
 
   const set = f => e => setForm(prev => ({ ...prev, [f]: e.target.value }))
+
+  // Live cost preview
+  const hrs  = Number(form.stream_hours)      || 0
+  const mins = Number(form.minutes_delivered) || 0
+  const gbRate      = pricing?.gb_per_50_min  ?? 4
+  const feedRate    = pricing?.feed_rate_per_hr ?? 15
+  const cdnRate     = pricing?.cdn_rate_per_gb  ?? 0.05
+  const gb_preview  = (mins / 50) * gbRate
+  const cost_feed   = hrs  * feedRate
+  const cost_cdn    = gb_preview * cdnRate
+  const cost_total  = cost_feed + cost_cdn
 
   async function handleSave() {
     setSaving(true)
@@ -169,7 +179,7 @@ function CdnRecordDialog({ open, initial, tournaments, onClose, onSave }) {
   }
 
   const isValid = form.date && form.label && form.channel_id && form.channel_name &&
-    form.gb_ingested !== '' && form.gb_delivered !== '' && form.gb_stored !== ''
+    form.stream_hours !== '' && form.minutes_delivered !== ''
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm"
@@ -199,16 +209,41 @@ function CdnRecordDialog({ open, initial, tournaments, onClose, onSave }) {
         </Box>
         <Divider />
         <Typography variant="caption" sx={{ color: TP.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-          CDN Usage (GB)
+          Usage Data
         </Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
-          <TextField label="Ingested" type="number" value={form.gb_ingested} onChange={set('gb_ingested')}
-            size="small" fullWidth inputProps={{ step: '0.001', min: 0 }} />
-          <TextField label="Delivered" type="number" value={form.gb_delivered} onChange={set('gb_delivered')}
-            size="small" fullWidth inputProps={{ step: '0.001', min: 0 }} />
-          <TextField label="Stored" type="number" value={form.gb_stored} onChange={set('gb_stored')}
-            size="small" fullWidth inputProps={{ step: '0.001', min: 0 }} />
+          <TextField label="Stream Hours" type="number" value={form.stream_hours} onChange={set('stream_hours')}
+            size="small" fullWidth inputProps={{ step: '0.25', min: 0 }}
+            helperText="How long feed ran" />
+          <TextField label="Minutes Delivered" type="number" value={form.minutes_delivered} onChange={set('minutes_delivered')}
+            size="small" fullWidth inputProps={{ step: '1', min: 0 }}
+            helperText="From JW analytics" />
         </Box>
+
+        {/* Live cost preview */}
+        {(hrs > 0 || mins > 0) && (
+          <Box sx={{
+            p: 1.5, borderRadius: 1, bgcolor: TP.accentDim,
+            border: `1px solid ${TP.accentBdr}`, display: 'flex', gap: 3, flexWrap: 'wrap',
+          }}>
+            <Box>
+              <Typography variant="caption" sx={{ color: TP.muted, fontSize: '0.62rem', textTransform: 'uppercase' }}>GB Delivered</Typography>
+              <Typography sx={{ fontSize: '0.9rem', fontWeight: 700 }}>{gb_preview.toFixed(2)} GB</Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" sx={{ color: TP.muted, fontSize: '0.62rem', textTransform: 'uppercase' }}>Feed Fee</Typography>
+              <Typography sx={{ fontSize: '0.9rem', fontWeight: 700 }}>${cost_feed.toFixed(2)}</Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" sx={{ color: TP.muted, fontSize: '0.62rem', textTransform: 'uppercase' }}>CDN Cost</Typography>
+              <Typography sx={{ fontSize: '0.9rem', fontWeight: 700 }}>${cost_cdn.toFixed(2)}</Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" sx={{ color: TP.muted, fontSize: '0.62rem', textTransform: 'uppercase' }}>Total</Typography>
+              <Typography sx={{ fontSize: '0.9rem', fontWeight: 800, color: TP.accent }}>${cost_total.toFixed(2)}</Typography>
+            </Box>
+          </Box>
+        )}
       </DialogContent>
       <DialogActions sx={{ px: 2, pb: 2 }}>
         <Button onClick={onClose} size="small" sx={{ color: TP.muted }}>Cancel</Button>
@@ -227,10 +262,12 @@ function CdnRecordDialog({ open, initial, tournaments, onClose, onSave }) {
 // ─── Overview tab ─────────────────────────────────────────────────────────────
 
 function OverviewTab({ records, pricing, tournaments }) {
-  const grandTotal    = records.reduce((s, r) => s + (r.cost_total  || 0), 0)
-  const totalDelivered = records.reduce((s, r) => s + (r.gb_delivered || 0), 0)
-  const totalIngested  = records.reduce((s, r) => s + (r.gb_ingested  || 0), 0)
-  const totalStored    = records.reduce((s, r) => s + (r.gb_stored    || 0), 0)
+  const grandTotal      = records.reduce((s, r) => s + (r.cost_total        || 0), 0)
+  const totalFeedCost   = records.reduce((s, r) => s + (r.cost_feed         || 0), 0)
+  const totalCdnCost    = records.reduce((s, r) => s + (r.cost_cdn          || 0), 0)
+  const totalDelivered  = records.reduce((s, r) => s + (r.gb_delivered      || 0), 0)
+  const totalStreamHrs  = records.reduce((s, r) => s + (r.stream_hours      || 0), 0)
+  const totalMinsDel    = records.reduce((s, r) => s + (r.minutes_delivered || 0), 0)
 
   // Per-tournament rollup
   const byTournament = tournaments.map(t => {
@@ -238,10 +275,11 @@ function OverviewTab({ records, pricing, tournaments }) {
     return {
       ...t,
       feeds:        tRecs.length,
-      gb_delivered: tRecs.reduce((s, r) => s + (r.gb_delivered || 0), 0),
-      gb_ingested:  tRecs.reduce((s, r) => s + (r.gb_ingested  || 0), 0),
-      gb_stored:    tRecs.reduce((s, r) => s + (r.gb_stored    || 0), 0),
-      cost_total:   tRecs.reduce((s, r) => s + (r.cost_total   || 0), 0),
+      stream_hours: tRecs.reduce((s, r) => s + (r.stream_hours      || 0), 0),
+      gb_delivered: tRecs.reduce((s, r) => s + (r.gb_delivered      || 0), 0),
+      cost_feed:    tRecs.reduce((s, r) => s + (r.cost_feed         || 0), 0),
+      cost_cdn:     tRecs.reduce((s, r) => s + (r.cost_cdn          || 0), 0),
+      cost_total:   tRecs.reduce((s, r) => s + (r.cost_total        || 0), 0),
     }
   }).filter(t => t.feeds > 0)
 
@@ -251,9 +289,10 @@ function OverviewTab({ records, pricing, tournaments }) {
     byTournament.push({
       id: null, name: 'Unattributed', location: '—',
       feeds:        unattributed.length,
+      stream_hours: unattributed.reduce((s, r) => s + (r.stream_hours || 0), 0),
       gb_delivered: unattributed.reduce((s, r) => s + (r.gb_delivered || 0), 0),
-      gb_ingested:  unattributed.reduce((s, r) => s + (r.gb_ingested  || 0), 0),
-      gb_stored:    unattributed.reduce((s, r) => s + (r.gb_stored    || 0), 0),
+      cost_feed:    unattributed.reduce((s, r) => s + (r.cost_feed    || 0), 0),
+      cost_cdn:     unattributed.reduce((s, r) => s + (r.cost_cdn     || 0), 0),
       cost_total:   unattributed.reduce((s, r) => s + (r.cost_total   || 0), 0),
     })
   }
@@ -262,10 +301,13 @@ function OverviewTab({ records, pricing, tournaments }) {
   const monthMap = {}
   records.forEach(r => {
     const mk = monthKey(r.date)
-    if (!monthMap[mk]) monthMap[mk] = { feeds: 0, gb_delivered: 0, cost_total: 0 }
+    if (!monthMap[mk]) monthMap[mk] = { feeds: 0, stream_hours: 0, gb_delivered: 0, cost_feed: 0, cost_cdn: 0, cost_total: 0 }
     monthMap[mk].feeds++
-    monthMap[mk].gb_delivered += r.gb_delivered || 0
-    monthMap[mk].cost_total   += r.cost_total   || 0
+    monthMap[mk].stream_hours  += r.stream_hours      || 0
+    monthMap[mk].gb_delivered  += r.gb_delivered      || 0
+    monthMap[mk].cost_feed     += r.cost_feed         || 0
+    monthMap[mk].cost_cdn      += r.cost_cdn          || 0
+    monthMap[mk].cost_total    += r.cost_total        || 0
   })
   const months = Object.entries(monthMap).sort(([a], [b]) => b.localeCompare(a))
 
@@ -274,10 +316,10 @@ function OverviewTab({ records, pricing, tournaments }) {
 
       {/* Stat cards */}
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <StatCard label="Total CDN Cost"      value={fmtUSD(grandTotal)}    sub={`${records.length} feed records`} />
-        <StatCard label="Total Delivered"     value={fmtGB(totalDelivered)} sub="playout / egress" />
-        <StatCard label="Total Ingested"      value={fmtGB(totalIngested)}  sub="encoding input" />
-        <StatCard label="Total Stored"        value={fmtGB(totalStored)}    sub="VOD storage" />
+        <StatCard label="Total Cost"       value={fmtUSD(grandTotal)}                       sub={`${records.length} feeds`} />
+        <StatCard label="Feed Fees"        value={fmtUSD(totalFeedCost)}                    sub={`${totalStreamHrs.toFixed(1)} stream hrs`} />
+        <StatCard label="CDN Cost"         value={fmtUSD(totalCdnCost)}                     sub={fmtGB(totalDelivered) + ' delivered'} />
+        <StatCard label="Mins Delivered"   value={totalMinsDel.toLocaleString()}             sub="viewer-minutes" />
       </Box>
 
       {/* Per-tournament */}
@@ -288,7 +330,7 @@ function OverviewTab({ records, pricing, tournaments }) {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  {['Tournament', 'Feeds', 'GB Delivered', 'GB Ingested', 'GB Stored', 'Total Cost'].map(h => (
+                  {['Tournament', 'Feeds', 'Stream Hrs', 'GB Delivered', 'Feed Fees', 'CDN Cost', 'Total'].map(h => (
                     <TableCell key={h} sx={{ color: TP.muted, fontSize: '0.7rem', fontWeight: 600 }}>{h}</TableCell>
                   ))}
                 </TableRow>
@@ -303,9 +345,10 @@ function OverviewTab({ records, pricing, tournaments }) {
                       )}
                     </TableCell>
                     <TableCell sx={{ fontSize: '0.8rem' }}>{t.feeds}</TableCell>
+                    <TableCell sx={{ fontSize: '0.8rem' }}>{t.stream_hours.toFixed(1)}</TableCell>
                     <TableCell sx={{ fontSize: '0.8rem' }}>{fmtGB(t.gb_delivered)}</TableCell>
-                    <TableCell sx={{ fontSize: '0.8rem' }}>{fmtGB(t.gb_ingested)}</TableCell>
-                    <TableCell sx={{ fontSize: '0.8rem' }}>{fmtGB(t.gb_stored)}</TableCell>
+                    <TableCell sx={{ fontSize: '0.8rem' }}>{fmtUSD(t.cost_feed)}</TableCell>
+                    <TableCell sx={{ fontSize: '0.8rem' }}>{fmtUSD(t.cost_cdn)}</TableCell>
                     <TableCell sx={{ fontSize: '0.8rem', fontWeight: 700, color: TP.accent }}>{fmtUSD(t.cost_total)}</TableCell>
                   </TableRow>
                 ))}
@@ -323,7 +366,7 @@ function OverviewTab({ records, pricing, tournaments }) {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  {['Month', 'Feeds', 'GB Delivered', 'Total Cost'].map(h => (
+                  {['Month', 'Feeds', 'Stream Hrs', 'GB Delivered', 'Feed Fees', 'CDN Cost', 'Total'].map(h => (
                     <TableCell key={h} sx={{ color: TP.muted, fontSize: '0.7rem', fontWeight: 600 }}>{h}</TableCell>
                   ))}
                 </TableRow>
@@ -333,7 +376,10 @@ function OverviewTab({ records, pricing, tournaments }) {
                   <TableRow key={mk} hover>
                     <TableCell sx={{ fontSize: '0.8rem', fontWeight: 600 }}>{monthLabel(mk)}</TableCell>
                     <TableCell sx={{ fontSize: '0.8rem' }}>{m.feeds}</TableCell>
+                    <TableCell sx={{ fontSize: '0.8rem' }}>{m.stream_hours.toFixed(1)}</TableCell>
                     <TableCell sx={{ fontSize: '0.8rem' }}>{fmtGB(m.gb_delivered)}</TableCell>
+                    <TableCell sx={{ fontSize: '0.8rem' }}>{fmtUSD(m.cost_feed)}</TableCell>
+                    <TableCell sx={{ fontSize: '0.8rem' }}>{fmtUSD(m.cost_cdn)}</TableCell>
                     <TableCell sx={{ fontSize: '0.8rem', fontWeight: 700, color: TP.accent }}>{fmtUSD(m.cost_total)}</TableCell>
                   </TableRow>
                 ))}
@@ -358,7 +404,7 @@ function OverviewTab({ records, pricing, tournaments }) {
 
 // ─── CDN Records tab ──────────────────────────────────────────────────────────
 
-function CdnRecordsTab({ records, tournaments, token, onRefresh, showSnack }) {
+function CdnRecordsTab({ records, tournaments, pricing, token, onRefresh, showSnack }) {
   const [dialog, setDialog]   = useState({ open: false, initial: null })
   const [monthFilter, setMonthFilter] = useState('all')
   const [deleting, setDeleting] = useState(null)
@@ -405,7 +451,9 @@ function CdnRecordsTab({ records, tournaments, token, onRefresh, showSnack }) {
     }
   }
 
-  const subtotal = filtered.reduce((s, r) => s + (r.cost_total || 0), 0)
+  const subtotal     = filtered.reduce((s, r) => s + (r.cost_total  || 0), 0)
+  const subtotalFeed = filtered.reduce((s, r) => s + (r.cost_feed   || 0), 0)
+  const subtotalCdn  = filtered.reduce((s, r) => s + (r.cost_cdn    || 0), 0)
 
   return (
     <>
@@ -450,7 +498,7 @@ function CdnRecordsTab({ records, tournaments, token, onRefresh, showSnack }) {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  {['Date', 'Label', 'Channel', 'GB Ing.', 'GB Del.', 'GB Stor.', 'Cost', ''].map(h => (
+                  {['Date', 'Label', 'Channel', 'Stream Hrs', 'Mins Del.', 'GB Del.', 'Feed Fee', 'CDN Cost', 'Total', ''].map(h => (
                     <TableCell key={h} sx={{ color: TP.muted, fontSize: '0.7rem', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</TableCell>
                   ))}
                 </TableRow>
@@ -464,9 +512,11 @@ function CdnRecordsTab({ records, tournaments, token, onRefresh, showSnack }) {
                       <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{r.channel_name}</Typography>
                       <Typography sx={{ fontSize: '0.65rem', color: TP.muted, fontFamily: 'monospace' }}>{r.channel_id}</Typography>
                     </TableCell>
-                    <TableCell sx={{ fontSize: '0.78rem' }}>{fmtGB(r.gb_ingested)}</TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem' }}>{r.stream_hours}h</TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem' }}>{Number(r.minutes_delivered).toLocaleString()}</TableCell>
                     <TableCell sx={{ fontSize: '0.78rem' }}>{fmtGB(r.gb_delivered)}</TableCell>
-                    <TableCell sx={{ fontSize: '0.78rem' }}>{fmtGB(r.gb_stored)}</TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem' }}>{fmtUSD(r.cost_feed)}</TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem' }}>{fmtUSD(r.cost_cdn)}</TableCell>
                     <TableCell sx={{ fontSize: '0.78rem', fontWeight: 700, color: TP.accent }}>{fmtUSD(r.cost_total)}</TableCell>
                     <TableCell align="right">
                       <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
@@ -490,10 +540,12 @@ function CdnRecordsTab({ records, tournaments, token, onRefresh, showSnack }) {
                 ))}
                 {/* Subtotal row */}
                 <TableRow sx={{ bgcolor: TP.accentDim }}>
-                  <TableCell colSpan={6} sx={{ fontSize: '0.75rem', fontWeight: 700, color: TP.muted }}>
+                  <TableCell colSpan={7} sx={{ fontSize: '0.75rem', fontWeight: 700, color: TP.muted }}>
                     {monthFilter === 'all' ? 'Grand Total' : `${monthLabel(monthFilter)} Total`}
                     {' '}({filtered.length} records)
                   </TableCell>
+                  <TableCell sx={{ fontSize: '0.78rem', color: TP.muted }}>{fmtUSD(subtotalFeed)}</TableCell>
+                  <TableCell sx={{ fontSize: '0.78rem', color: TP.muted }}>{fmtUSD(subtotalCdn)}</TableCell>
                   <TableCell colSpan={2} sx={{ fontSize: '0.85rem', fontWeight: 800, color: TP.accent }}>
                     {fmtUSD(subtotal)}
                   </TableCell>
@@ -508,6 +560,7 @@ function CdnRecordsTab({ records, tournaments, token, onRefresh, showSnack }) {
         open={dialog.open}
         initial={dialog.initial}
         tournaments={tournaments}
+        pricing={pricing}
         onClose={() => setDialog({ open: false, initial: null })}
         onSave={handleSave}
       />
@@ -518,21 +571,29 @@ function CdnRecordsTab({ records, tournaments, token, onRefresh, showSnack }) {
 // ─── Pricing tab ──────────────────────────────────────────────────────────────
 
 function PricingTab({ pricing, token, onRefresh, showSnack }) {
-  const [rates, setRates]   = useState({ ingestion_per_gb: '', storage_per_gb: '', playout_per_gb: '' })
+  const [rates, setRates]         = useState({ feed_rate_per_hr: '', cdn_rate_per_gb: '', gb_per_50_min: '' })
   const [overrides, setOverrides] = useState({})
-  const [savingRates, setSavingRates]   = useState(false)
-  const [newOverride, setNewOverride] = useState({ channel_id: '', name: '', ingestion_per_gb: '', storage_per_gb: '', playout_per_gb: '' })
+  const [savingRates, setSavingRates] = useState(false)
+  const [newOverride, setNewOverride] = useState({ channel_id: '', name: '', feed_rate_per_hr: '', cdn_rate_per_gb: '' })
 
   useEffect(() => {
     if (pricing) {
       setRates({
-        ingestion_per_gb: pricing.ingestion_per_gb ?? '',
-        storage_per_gb:   pricing.storage_per_gb   ?? '',
-        playout_per_gb:   pricing.playout_per_gb   ?? '',
+        feed_rate_per_hr: pricing.feed_rate_per_hr ?? '',
+        cdn_rate_per_gb:  pricing.cdn_rate_per_gb  ?? '',
+        gb_per_50_min:    pricing.gb_per_50_min    ?? '',
       })
       setOverrides(pricing.channel_overrides || {})
     }
   }, [pricing])
+
+  // Live effective rate preview
+  const hrs    = Number(rates.feed_rate_per_hr) || 0
+  const cdn    = Number(rates.cdn_rate_per_gb)  || 0
+  const gbRate = Number(rates.gb_per_50_min)    || 0
+  const gbPerHr      = (60 / 50) * gbRate
+  const cdnPerHr     = gbPerHr * cdn
+  const totalPerHr   = hrs + cdnPerHr
 
   async function saveRates() {
     setSavingRates(true)
@@ -541,9 +602,9 @@ function PricingTab({ pricing, token, onRefresh, showSnack }) {
         method: 'PUT',
         headers: tdAuthHeader(token),
         body: JSON.stringify({
-          ingestion_per_gb: Number(rates.ingestion_per_gb),
-          storage_per_gb:   Number(rates.storage_per_gb),
-          playout_per_gb:   Number(rates.playout_per_gb),
+          feed_rate_per_hr: Number(rates.feed_rate_per_hr),
+          cdn_rate_per_gb:  Number(rates.cdn_rate_per_gb),
+          gb_per_50_min:    Number(rates.gb_per_50_min),
           channel_overrides: overrides,
         }),
       })
@@ -561,30 +622,15 @@ function PricingTab({ pricing, token, onRefresh, showSnack }) {
     if (!newOverride.channel_id) return
     const entry = {}
     if (newOverride.name)             entry.name             = newOverride.name
-    if (newOverride.ingestion_per_gb) entry.ingestion_per_gb = Number(newOverride.ingestion_per_gb)
-    if (newOverride.storage_per_gb)   entry.storage_per_gb   = Number(newOverride.storage_per_gb)
-    if (newOverride.playout_per_gb)   entry.playout_per_gb   = Number(newOverride.playout_per_gb)
+    if (newOverride.feed_rate_per_hr) entry.feed_rate_per_hr = Number(newOverride.feed_rate_per_hr)
+    if (newOverride.cdn_rate_per_gb)  entry.cdn_rate_per_gb  = Number(newOverride.cdn_rate_per_gb)
     setOverrides(o => ({ ...o, [newOverride.channel_id]: entry }))
-    setNewOverride({ channel_id: '', name: '', ingestion_per_gb: '', storage_per_gb: '', playout_per_gb: '' })
+    setNewOverride({ channel_id: '', name: '', feed_rate_per_hr: '', cdn_rate_per_gb: '' })
   }
 
   function removeOverride(cid) {
     setOverrides(o => { const n = { ...o }; delete n[cid]; return n })
   }
-
-  const rateField = (label, field) => (
-    <TextField
-      label={label}
-      type="number"
-      value={rates[field]}
-      onChange={e => setRates(r => ({ ...r, [field]: e.target.value }))}
-      size="small"
-      inputProps={{ step: '0.001', min: 0 }}
-      InputProps={{ startAdornment: <Typography sx={{ color: TP.muted, mr: 0.5, fontSize: '0.85rem' }}>$</Typography> }}
-      helperText="per GB"
-      sx={{ flex: 1 }}
-    />
-  )
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -594,16 +640,48 @@ function PricingTab({ pricing, token, onRefresh, showSnack }) {
         <SectionHeader icon={<AttachMoneyIcon />} title="GLOBAL RATES" />
         <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            {rateField('Ingestion',  'ingestion_per_gb')}
-            {rateField('Storage',    'storage_per_gb')}
-            {rateField('Playout',    'playout_per_gb')}
+            <TextField label="Feed Rate" type="number" value={rates.feed_rate_per_hr}
+              onChange={e => setRates(r => ({ ...r, feed_rate_per_hr: e.target.value }))}
+              size="small" inputProps={{ step: '0.01', min: 0 }}
+              InputProps={{ startAdornment: <Typography sx={{ color: TP.muted, mr: 0.5, fontSize: '0.85rem' }}>$</Typography> }}
+              helperText="per hour per feed" sx={{ flex: 1 }} />
+            <TextField label="CDN Rate" type="number" value={rates.cdn_rate_per_gb}
+              onChange={e => setRates(r => ({ ...r, cdn_rate_per_gb: e.target.value }))}
+              size="small" inputProps={{ step: '0.001', min: 0 }}
+              InputProps={{ startAdornment: <Typography sx={{ color: TP.muted, mr: 0.5, fontSize: '0.85rem' }}>$</Typography> }}
+              helperText="per GB delivered" sx={{ flex: 1 }} />
+            <TextField label="Data Rate" type="number" value={rates.gb_per_50_min}
+              onChange={e => setRates(r => ({ ...r, gb_per_50_min: e.target.value }))}
+              size="small" inputProps={{ step: '0.1', min: 0 }}
+              helperText="GB per 50 min" sx={{ flex: 1 }} />
           </Box>
+
+          {/* Effective rate preview */}
+          {totalPerHr > 0 && (
+            <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: TP.accentDim, border: `1px solid ${TP.accentBdr}`, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+              <Box>
+                <Typography variant="caption" sx={{ color: TP.muted, fontSize: '0.62rem', textTransform: 'uppercase' }}>GB/hr per feed</Typography>
+                <Typography sx={{ fontSize: '0.9rem', fontWeight: 700 }}>{gbPerHr.toFixed(2)} GB</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" sx={{ color: TP.muted, fontSize: '0.62rem', textTransform: 'uppercase' }}>Feed fee/hr</Typography>
+                <Typography sx={{ fontSize: '0.9rem', fontWeight: 700 }}>${hrs.toFixed(2)}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" sx={{ color: TP.muted, fontSize: '0.62rem', textTransform: 'uppercase' }}>CDN cost/hr</Typography>
+                <Typography sx={{ fontSize: '0.9rem', fontWeight: 700 }}>${cdnPerHr.toFixed(2)}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" sx={{ color: TP.muted, fontSize: '0.62rem', textTransform: 'uppercase' }}>Effective $/hr</Typography>
+                <Typography sx={{ fontSize: '0.9rem', fontWeight: 800, color: TP.accent }}>${totalPerHr.toFixed(2)}</Typography>
+              </Box>
+            </Box>
+          )}
+
           <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button
-              variant="contained" size="small" startIcon={<SaveIcon />}
+            <Button variant="contained" size="small" startIcon={<SaveIcon />}
               onClick={saveRates} disabled={savingRates}
-              sx={{ bgcolor: TP.accent, '&:hover': { bgcolor: TP.accentHov } }}
-            >
+              sx={{ bgcolor: TP.accent, '&:hover': { bgcolor: TP.accentHov } }}>
               {savingRates ? 'Saving…' : 'Save Rates'}
             </Button>
           </Box>
@@ -615,7 +693,7 @@ function PricingTab({ pricing, token, onRefresh, showSnack }) {
         <SectionHeader icon={<TuneIcon />} title="PER-CHANNEL OVERRIDES" />
         <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Typography variant="caption" sx={{ color: TP.muted }}>
-            Override global rates for specific JW channel IDs. Leave a rate blank to inherit the global value.
+            Override global rates for specific JW channel IDs. Leave a field blank to inherit the global value.
           </Typography>
 
           {Object.keys(overrides).length > 0 && (
@@ -623,7 +701,7 @@ function PricingTab({ pricing, token, onRefresh, showSnack }) {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    {['Channel ID', 'Name', 'Ingestion', 'Storage', 'Playout', ''].map(h => (
+                    {['Channel ID', 'Name', 'Feed Rate/hr', 'CDN Rate/GB', ''].map(h => (
                       <TableCell key={h} sx={{ color: TP.muted, fontSize: '0.7rem', fontWeight: 600 }}>{h}</TableCell>
                     ))}
                   </TableRow>
@@ -633,9 +711,8 @@ function PricingTab({ pricing, token, onRefresh, showSnack }) {
                     <TableRow key={cid} hover>
                       <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>{cid}</TableCell>
                       <TableCell sx={{ fontSize: '0.78rem' }}>{ov.name || '—'}</TableCell>
-                      <TableCell sx={{ fontSize: '0.78rem' }}>{ov.ingestion_per_gb != null ? `$${ov.ingestion_per_gb}/GB` : '(global)'}</TableCell>
-                      <TableCell sx={{ fontSize: '0.78rem' }}>{ov.storage_per_gb   != null ? `$${ov.storage_per_gb}/GB`   : '(global)'}</TableCell>
-                      <TableCell sx={{ fontSize: '0.78rem' }}>{ov.playout_per_gb   != null ? `$${ov.playout_per_gb}/GB`   : '(global)'}</TableCell>
+                      <TableCell sx={{ fontSize: '0.78rem' }}>{ov.feed_rate_per_hr != null ? `$${ov.feed_rate_per_hr}/hr` : '(global)'}</TableCell>
+                      <TableCell sx={{ fontSize: '0.78rem' }}>{ov.cdn_rate_per_gb  != null ? `$${ov.cdn_rate_per_gb}/GB`  : '(global)'}</TableCell>
                       <TableCell align="right">
                         <IconButton size="small" onClick={() => removeOverride(cid)} sx={{ color: TP.muted, '&:hover': { color: TP.danger } }}>
                           <DeleteIcon sx={{ fontSize: 15 }} />
@@ -652,19 +729,16 @@ function PricingTab({ pricing, token, onRefresh, showSnack }) {
           <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <TextField label="Channel ID" value={newOverride.channel_id}
               onChange={e => setNewOverride(o => ({ ...o, channel_id: e.target.value }))}
-              size="small" sx={{ width: 120 }} placeholder="die1qpMr" />
+              size="small" sx={{ width: 130 }} placeholder="die1qpMr" />
             <TextField label="Name" value={newOverride.name}
               onChange={e => setNewOverride(o => ({ ...o, name: e.target.value }))}
-              size="small" sx={{ width: 120 }} placeholder="Main Deck" />
-            <TextField label="Ingestion $/GB" type="number" value={newOverride.ingestion_per_gb}
-              onChange={e => setNewOverride(o => ({ ...o, ingestion_per_gb: e.target.value }))}
-              size="small" sx={{ width: 120 }} inputProps={{ step: '0.001' }} />
-            <TextField label="Storage $/GB" type="number" value={newOverride.storage_per_gb}
-              onChange={e => setNewOverride(o => ({ ...o, storage_per_gb: e.target.value }))}
-              size="small" sx={{ width: 120 }} inputProps={{ step: '0.001' }} />
-            <TextField label="Playout $/GB" type="number" value={newOverride.playout_per_gb}
-              onChange={e => setNewOverride(o => ({ ...o, playout_per_gb: e.target.value }))}
-              size="small" sx={{ width: 120 }} inputProps={{ step: '0.001' }} />
+              size="small" sx={{ width: 130 }} placeholder="Main Deck" />
+            <TextField label="Feed $/hr" type="number" value={newOverride.feed_rate_per_hr}
+              onChange={e => setNewOverride(o => ({ ...o, feed_rate_per_hr: e.target.value }))}
+              size="small" sx={{ width: 110 }} inputProps={{ step: '0.01' }} />
+            <TextField label="CDN $/GB" type="number" value={newOverride.cdn_rate_per_gb}
+              onChange={e => setNewOverride(o => ({ ...o, cdn_rate_per_gb: e.target.value }))}
+              size="small" sx={{ width: 110 }} inputProps={{ step: '0.001' }} />
             <Button
               variant="outlined" size="small" startIcon={<AddIcon />}
               onClick={addOverride} disabled={!newOverride.channel_id}
@@ -772,6 +846,7 @@ function TdDashboard({ token, onLogout }) {
           <CdnRecordsTab
             records={cdnRecords}
             tournaments={tournaments}
+            pricing={pricing}
             token={token}
             onRefresh={fetchAll}
             showSnack={showSnack}
