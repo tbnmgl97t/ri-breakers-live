@@ -19,10 +19,10 @@ const EC_ID        = process.env.EDGE_CONFIG_ID
 const VERCEL_TOKEN = process.env.VERCEL_API_TOKEN
 
 export const DEFAULT_TENANT = {
-  id:       'ri-breakers',
-  title:    'Rhode Island Breakers',
-  subtitle: 'Sport Fishing Championship',
-  logo_url: 'https://ribreakersac.com/cdn/shop/files/RI-Breakers-Logo-WHITE.png?v=1774997726&width=200',
+  id:       'eventhub-live',
+  title:    'EventHub Live',
+  subtitle: 'Live Event Streaming Platform',
+  logo_url: '',
   colors: {
     primary:    '#e65d2c',
     secondary:  '#0a205a',

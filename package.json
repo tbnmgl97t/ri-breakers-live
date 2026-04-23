@@ -1,5 +1,5 @@
 {
-  "name": "ri-breakers-livefeed",
+  "name": "eventhub-live",
   "private": true,
   "version": "0.0.0",
   "type": "module",

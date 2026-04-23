@@ -21,7 +21,6 @@ import LiveTvIcon from '@mui/icons-material/LiveTv'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import LocationOnIcon from '@mui/icons-material/LocationOn'
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
@@ -367,7 +366,6 @@ function EventDrawer({ open, initial, onClose, onSave }) {
     >
       <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <EmojiEventsIcon sx={{ color: AP.accent, fontSize: 20 }} />
           <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', flex: 1 }}>
             {initial?.id ? 'Edit Event' : 'Add Event'}
           </Typography>
@@ -657,7 +655,7 @@ function toUtcIso(dateStr, timeStr) {
   }
 }
 
-// ─── Create Live Stream dialog ───────────────────────────────────────────────
+// ─── Create Live Stream drawer ───────────────────────────────────────────────
 
 const INGEST_FORMATS = [
   { value: 'rtmp',  label: 'RTMP' },
@@ -671,7 +669,7 @@ const REGIONS = [
   { value: 'eu-west-1', label: 'EU West (eu-west-1)' },
 ]
 
-function CreateStreamDialog({ open, token, onClose, onCreated }) {
+function CreateStreamDrawer({ open, token, onClose, onCreated }) {
   const [channelType, setChannelType] = useState('live_event')
   const [title, setTitle]             = useState('')
   const [region, setRegion]           = useState('us-east-1')
@@ -781,21 +779,29 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
   const sectionLabel = { color: '#a8bcd4', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.09em', mb: 0.75 }
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm"
-      PaperProps={{ sx: { bgcolor: 'background.paper', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2 } }}
+    <Drawer anchor="right" open={open} onClose={onClose}
+      PaperProps={{ sx: { width: 520, bgcolor: '#0d1117', borderLeft: '1px solid rgba(255,255,255,0.07)' } }}
     >
-      <DialogTitle sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <LiveTvIcon sx={{ color: AP.accent, fontSize: 20 }} />
-        Create Live Stream
-      </DialogTitle>
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%' }}>
+        {/* Header */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+          <LiveTvIcon sx={{ color: AP.accent, fontSize: 20 }} />
+          <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem', flex: 1 }}>
+            Create Live Stream
+          </Typography>
+          <IconButton size="small" onClick={onClose} sx={{ color: AP.muted }}>
+            <CloseIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Box>
 
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: '12px !important' }}>
-        {error && <Alert severity="error" sx={{ fontSize: '0.8rem' }}>{error}</Alert>}
+        {/* Scrollable content */}
+        <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2.5, pr: 0.5 }}>
+          {error && <Alert severity="error" sx={{ fontSize: '0.8rem' }}>{error}</Alert>}
 
-        {!result ? (
-          <>
-            <Box>
-              <Typography sx={sectionLabel}>CHANNEL TYPE</Typography>
+          {!result ? (
+            <>
+              <Box>
+                <Typography sx={sectionLabel}>CHANNEL TYPE</Typography>
               <ToggleButtonGroup
                 exclusive
                 value={channelType}
@@ -954,23 +960,25 @@ function CreateStreamDialog({ open, token, onClose, onCreated }) {
               )}
             </Box>
           </Box>
-        )}
-      </DialogContent>
+          )}
+        </Box>{/* end scrollable content */}
 
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} sx={{ color: '#a8bcd4' }}>{result ? 'Close' : 'Cancel'}</Button>
-        {!result && (
-          <Button
-            onClick={handleCreate}
-            disabled={!isValid || loading}
-            variant="contained"
-            sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov } }}
-          >
-            {loading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Create'}
-          </Button>
-        )}
-      </DialogActions>
-    </Dialog>
+        {/* Footer */}
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, pt: 1.5, borderTop: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+          <Button onClick={onClose} sx={{ color: '#a8bcd4' }}>{result ? 'Close' : 'Cancel'}</Button>
+          {!result && (
+            <Button
+              onClick={handleCreate}
+              disabled={!isValid || loading}
+              variant="contained"
+              sx={{ bgcolor: AP.accent, '&:hover': { bgcolor: AP.accentHov } }}
+            >
+              {loading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Create'}
+            </Button>
+          )}
+        </Box>
+      </Box>{/* end outer Box */}
+    </Drawer>
   )
 }
 
@@ -1001,8 +1009,6 @@ function TournamentCard({ tournament, channels, token, onRefresh, onAddDay, onEd
         <IconButton size="small" sx={{ color: AP.accent, p: 0, mr: 0.5 }} onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}>
           {expanded ? <ExpandLessIcon sx={{ fontSize: 20 }} /> : <ExpandMoreIcon sx={{ fontSize: 20 }} />}
         </IconButton>
-
-        <EmojiEventsIcon sx={{ color: AP.accent, fontSize: 18, flexShrink: 0 }} />
 
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography sx={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem', lineHeight: 1.2 }}>
@@ -1190,7 +1196,6 @@ function TournamentCostCard({ tournament, cdnRecords = [] }) {
         <IconButton size="small" sx={{ color: AP.accent, p: 0, mr: 0.5 }} onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}>
           {expanded ? <ExpandLessIcon sx={{ fontSize: 20 }} /> : <ExpandMoreIcon sx={{ fontSize: 20 }} />}
         </IconButton>
-        <EmojiEventsIcon sx={{ color: AP.accent, fontSize: 18, flexShrink: 0 }} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography sx={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem', lineHeight: 1.2 }}>{tournament.name}</Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.25 }}>
@@ -2301,7 +2306,7 @@ function Dashboard({ token, onLogout }) {
       <Box height={48} display="flex" alignItems="center" px={2} gap={1.5}
         sx={{ borderBottom: '1px solid rgba(255,255,255,0.06)', bgcolor: '#0a0f1a', flexShrink: 0, zIndex: 10 }}
       >
-        <Typography sx={{ fontFamily: "'Bayon'", letterSpacing: '0.1em', color: '#818cf8', fontSize: '0.95rem' }}>⚡ RI BREAKERS</Typography>
+        <Typography sx={{ fontFamily: "'Bayon'", letterSpacing: '0.1em', color: '#818cf8', fontSize: '0.95rem' }}>⚡ EVENTHUB LIVE</Typography>
         <Typography variant="caption" sx={{ color: '#334155', fontSize: '0.7rem' }}>Admin</Typography>
         {liveNow > 0 && (
           <Chip label={`${liveNow} LIVE`} size="small"
@@ -2392,7 +2397,6 @@ function Dashboard({ token, onLogout }) {
                     background: `linear-gradient(90deg, ${AP.accentDim} 0%, transparent 60%)`,
                   }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <EmojiEventsIcon sx={{ color: AP.accent, fontSize: 18 }} />
                       <Typography sx={{ fontFamily: "'Bayon', sans-serif", letterSpacing: '0.06em', fontSize: '1rem' }}>
                         EVENTS
                       </Typography>
@@ -2422,7 +2426,6 @@ function Dashboard({ token, onLogout }) {
                       </Box>
                     ) : tournaments.length === 0 ? (
                       <Box sx={{ textAlign: 'center', py: 4 }}>
-                        <EmojiEventsIcon sx={{ color: 'rgba(168,188,212,0.2)', fontSize: 40, mb: 1 }} />
                         <Typography variant="body2" sx={{ color: 'rgba(168,188,212,0.5)' }}>
                           No events yet. Click "Add Event" to create one.
                         </Typography>
@@ -2789,7 +2792,7 @@ function Dashboard({ token, onLogout }) {
         onClose={() => setPickerDialog({ open: false, slot: null, day: null, tournamentId: null })}
         onPick={picked => assignCamera(pickerDialog.slot, pickerDialog.tournamentId, picked)}
       />
-      <CreateStreamDialog
+      <CreateStreamDrawer
         open={createStreamOpen}
         token={token}
         onClose={() => setCreateStreamOpen(false)}
